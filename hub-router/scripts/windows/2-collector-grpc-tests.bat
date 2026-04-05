@@ -3,6 +3,7 @@ setlocal
 
 REM Локальный запуск тестов Hub Router для проверки сервиса Collector
 
+REM
 set "JAR_PATH=%~dp0..\hub-router.jar"
 
 if "%1"=="info" (
@@ -19,6 +20,8 @@ echo.
 java -jar "%JAR_PATH%" ^
   --hub-router.execution.mode=COLLECTION ^
   --hub-router.execution.collector.mode=grpc ^
+  --hub-router.execution.collector.host=localhost ^
+  --hub-router.execution.collector.port=59091 ^
   --hub-router.execution.immediate-logging.enabled=false ^
   --hub-router.execution.output.info-enabled=true ^
   --hub-router.execution.output.trace-enabled=true ^
@@ -26,5 +29,5 @@ java -jar "%JAR_PATH%" ^
   --hub-router.skip-summary-on-startup=false
 
 echo.
-echo  Тест завершён. Проверьте результаты в консоли выше.
+echo Тест завершён. Проверьте результаты в консоли выше.
 pause

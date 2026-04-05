@@ -4,7 +4,7 @@ spring:
 
 grpc:
   server:
-    port: 59091  # ИЗМЕНИТЬ с 9090 на 59091
+    port: 59091
 
 kafka:
   bootstrap-servers: localhost:9092
