@@ -3,7 +3,8 @@ package ru.yandex.practicum.telemetry.collector.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.kafka.telemetry.event.*;
-import ru.yandex.practicum.telemetry.collector.model.*;
+import ru.yandex.practicum.telemetry.collector.model.internal.*;
+import ru.yandex.practicum.telemetry.collector.model.internal.enums.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -12,14 +13,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class HubEventConverter {
 
-    public HubEventAvro toAvro(HubEvent event) {
+    public HubEventAvro toAvro(HubEventInternal event) {
         HubEventAvro.Builder builder = HubEventAvro.newBuilder();
         builder.setHubId(event.getHubId());
         builder.setTimestamp(event.getTimestamp().toEpochMilli());
 
         switch (event.getType()) {
             case DEVICE_ADDED:
-                DeviceAddedEvent deviceAddedEvent = (DeviceAddedEvent) event;
+                DeviceAddedEventInternal deviceAddedEvent = (DeviceAddedEventInternal) event;
                 DeviceAddedEventAvro deviceAddedAvro = DeviceAddedEventAvro.newBuilder()
                         .setId(deviceAddedEvent.getId())
                         .setType(mapDeviceType(deviceAddedEvent.getDeviceType()))
@@ -29,7 +30,7 @@ public class HubEventConverter {
                 break;
 
             case DEVICE_REMOVED:
-                DeviceRemovedEvent deviceRemovedEvent = (DeviceRemovedEvent) event;
+                DeviceRemovedEventInternal deviceRemovedEvent = (DeviceRemovedEventInternal) event;
                 DeviceRemovedEventAvro deviceRemovedAvro = DeviceRemovedEventAvro.newBuilder()
                         .setId(deviceRemovedEvent.getId())
                         .build();
@@ -38,10 +39,12 @@ public class HubEventConverter {
                 break;
 
             case SCENARIO_ADDED:
-                ScenarioAddedEvent scenarioAddedEvent = (ScenarioAddedEvent) event;
+                ScenarioAddedEventInternal scenarioAddedEvent = (ScenarioAddedEventInternal) event;
+
                 List<ScenarioConditionAvro> conditionsAvro = scenarioAddedEvent.getConditions().stream()
                         .map(this::mapCondition)
                         .collect(Collectors.toList());
+
                 List<DeviceActionAvro> actionsAvro = scenarioAddedEvent.getActions().stream()
                         .map(this::mapAction)
                         .collect(Collectors.toList());
@@ -56,7 +59,7 @@ public class HubEventConverter {
                 break;
 
             case SCENARIO_REMOVED:
-                ScenarioRemovedEvent scenarioRemovedEvent = (ScenarioRemovedEvent) event;
+                ScenarioRemovedEventInternal scenarioRemovedEvent = (ScenarioRemovedEventInternal) event;
                 ScenarioRemovedEventAvro scenarioRemovedAvro = ScenarioRemovedEventAvro.newBuilder()
                         .setName(scenarioRemovedEvent.getName())
                         .build();
@@ -89,7 +92,7 @@ public class HubEventConverter {
         }
     }
 
-    private ScenarioConditionAvro mapCondition(ScenarioCondition condition) {
+    private ScenarioConditionAvro mapCondition(ScenarioConditionInternal condition) {
         ScenarioConditionAvro.Builder builder = ScenarioConditionAvro.newBuilder();
         builder.setSensorId(condition.getSensorId());
         builder.setType(mapConditionType(condition.getType()));
@@ -134,7 +137,7 @@ public class HubEventConverter {
         }
     }
 
-    private DeviceActionAvro mapAction(DeviceAction action) {
+    private DeviceActionAvro mapAction(DeviceActionInternal action) {
         DeviceActionAvro.Builder builder = DeviceActionAvro.newBuilder();
         builder.setSensorId(action.getSensorId());
         builder.setType(mapActionType(action.getType()));
