@@ -1,0 +1,11 @@
+{
+  "groups": [
+    {
+      "name": "hub-router",
+      "type": "ru.yandex.practicum.telemetry.config.HubRouterConfig",
+      "sourceType": "ru.yandex.practicum.telemetry.config.HubRouterConfig"
+    }
+  ],
+  "properties": [],
+  "hints": []
+}
