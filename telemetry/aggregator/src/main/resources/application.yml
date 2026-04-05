@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: aggregator
+
+kafka:
+  bootstrap-servers: localhost:9092
+  topics:
+    sensors: telemetry.sensors.v1
+    snapshots: telemetry.snapshots.v1
+  consumer:
+    group-id: aggregator-group
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    max-poll-records: 100
+    session-timeout-ms: 30000
+    max-poll-interval-ms: 300000
+  producer:
+    acks: all
+    retries: 3
+
+logging:
+  level:
+    ru.yandex.practicum: DEBUG
+    org.apache.kafka: INFO
