@@ -1,11 +1,29 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart-home-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: smart_home
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   kafka:
     image: confluentinc/confluent-local:7.4.3
     hostname: kafka
     container_name: kafka
     ports:
-      - "9092:9092" # for client connections
-      - "9101:9101" # JMX
+      - "9092:9092"
+      - "9101:9101"
     restart: unless-stopped
     environment:
       KAFKA_NODE_ID: 1
@@ -16,20 +34,25 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
       KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
       CLUSTER_ID: 'K0EA9p0yEe6MkAAAAkKsEg'
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka-init-topics:
     image: confluentinc/confluent-local:7.4.3
     container_name: kafka-init-topics
     depends_on:
-      - kafka
-    command: "bash -c \
-                'kafka-topics --create --topic telemetry.sensors.v1 \
-                             --partitions 1 --replication-factor 1 --if-not-exists \
-                             --bootstrap-server kafka:29092 && \
-                kafka-topics --create --topic telemetry.snapshots.v1 \
-                             --partitions 1 --replication-factor 1 --if-not-exists \
-                             --bootstrap-server kafka:29092 && \
-                kafka-topics --create --topic telemetry.hubs.v1 \
-                             --partitions 1 --replication-factor 1 --if-not-exists \
-                             --bootstrap-server kafka:29092'"
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        kafka-topics --create --topic telemetry.sensors.v1 --partitions 3 --replication-factor 1 --if-not-exists --bootstrap-server kafka:29092 &&
+        kafka-topics --create --topic telemetry.hubs.v1 --partitions 3 --replication-factor 1 --if-not-exists --bootstrap-server kafka:29092 &&
+        kafka-topics --create --topic telemetry.snapshots.v1 --partitions 3 --replication-factor 1 --if-not-exists --bootstrap-server kafka:29092
+      "
     init: true
+
+volumes:
+  postgres_data:
