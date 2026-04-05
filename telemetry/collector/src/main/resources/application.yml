@@ -1,13 +1,13 @@
 spring:
   application:
     name: collector
-  kafka:
-    bootstrap-servers: localhost:9092
 
-server:
-  port: 8080
+grpc:
+  server:
+    port: 59091  # ИЗМЕНИТЬ с 9090 на 59091
 
 kafka:
+  bootstrap-servers: localhost:9092
   topics:
     sensors: telemetry.sensors.v1
     hubs: telemetry.hubs.v1
@@ -15,4 +15,5 @@ kafka:
 logging:
   level:
     ru.yandex.practicum: DEBUG
-    org.springframework.kafka: INFO
+    org.apache.kafka: INFO
+    net.devh: DEBUG
