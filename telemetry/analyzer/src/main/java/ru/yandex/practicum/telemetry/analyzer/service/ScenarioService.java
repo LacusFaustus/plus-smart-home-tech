@@ -10,6 +10,7 @@ import ru.yandex.practicum.telemetry.analyzer.repository.*;
 
 import java.util.List;
 import java.util.HashMap;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -68,16 +69,25 @@ public class ScenarioService {
         String scenarioName = event.getName();
         log.info("Scenario added: hubId={}, name={}", hubId, scenarioName);
 
-        // Удаляем существующий сценарий с таким же именем
-        scenarioRepository.deleteByHubIdAndName(hubId, scenarioName);
+        // Ищем существующий сценарий
+        Optional<Scenario> existingScenario = scenarioRepository.findByHubIdAndName(hubId, scenarioName);
 
-        // Создаём новый сценарий
-        Scenario scenario = Scenario.builder()
-                .hubId(hubId)
-                .name(scenarioName)
-                .conditions(new HashMap<>())
-                .actions(new HashMap<>())
-                .build();
+        Scenario scenario;
+        if (existingScenario.isPresent()) {
+            scenario = existingScenario.get();
+            // Очищаем старые связи (Hibernate сам удалит при очистке коллекций)
+            scenario.getConditions().clear();
+            scenario.getActions().clear();
+            log.info("Updating existing scenario: hubId={}, name={}", hubId, scenarioName);
+        } else {
+            scenario = Scenario.builder()
+                    .hubId(hubId)
+                    .name(scenarioName)
+                    .conditions(new HashMap<>())
+                    .actions(new HashMap<>())
+                    .build();
+            log.info("Creating new scenario: hubId={}, name={}", hubId, scenarioName);
+        }
 
         // Добавляем условия
         for (ScenarioConditionAvro conditionAvro : event.getConditions()) {
@@ -89,7 +99,6 @@ public class ScenarioService {
                     .value(conditionAvro.getValue() instanceof Integer ? (Integer) conditionAvro.getValue() : null)
                     .build();
             condition = conditionRepository.save(condition);
-
             scenario.getConditions().put(sensorId, condition);
             log.debug("Condition added for sensor {}: type={}, operation={}, value={}",
                     sensorId, condition.getType(), condition.getOperation(), condition.getValue());
@@ -104,7 +113,6 @@ public class ScenarioService {
                     .value(actionAvro.getValue())
                     .build();
             action = actionRepository.save(action);
-
             scenario.getActions().put(sensorId, action);
             log.debug("Action added for sensor {}: type={}, value={}",
                     sensorId, action.getType(), action.getValue());
