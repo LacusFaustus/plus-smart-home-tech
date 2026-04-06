@@ -10,6 +10,6 @@ option java_package = "ru.yandex.practicum.grpc.telemetry.collector";
 option java_outer_classname = "CollectorControllerProto";
 
 service CollectorController {
-  rpc collectSensorEvent (message.event.SensorEventProto) returns (google.protobuf.Empty);
-  rpc collectHubEvent (message.event.HubEventProto) returns (google.protobuf.Empty);
+  rpc CollectSensorEvent (message.event.SensorEventProto) returns (google.protobuf.Empty);
+  rpc CollectHubEvent (message.event.HubEventProto) returns (google.protobuf.Empty);
 }
