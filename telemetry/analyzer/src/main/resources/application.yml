@@ -2,24 +2,25 @@ spring:
   application:
     name: analyzer
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/smart_home
-    username: ${POSTGRES_USER:postgres}
-    password: ${POSTGRES_PASSWORD:postgres}
+    url: jdbc:postgresql://localhost:5432/smart_home
+    username: postgres
+    password: postgres
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: false
+    show-sql: true
   sql:
     init:
       mode: always
       schema-locations: classpath:db/migration/V1__init_schema.sql
 
 kafka:
-  bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  bootstrap-servers: localhost:9092
   topics:
     snapshots: telemetry.snapshots.v1
     hubs: telemetry.hubs.v1
@@ -38,13 +39,16 @@ kafka:
 grpc:
   client:
     hub-router:
-      address: 'static://${HUB_ROUTER_HOST:localhost}:59090'
+      address: 'static://localhost:59090'
       enableKeepAlive: true
       keepAliveWithoutCalls: true
       negotiationType: plaintext
 
 logging:
   level:
-    ru.yandex.practicum: INFO
-    org.apache.kafka: WARN
+    ru.yandex.practicum: DEBUG
+    org.apache.kafka: INFO
     org.hibernate: WARN
+    org.springframework.transaction: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"

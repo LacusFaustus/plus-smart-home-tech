@@ -13,7 +13,7 @@ import java.util.Map;
 public class ConditionEvaluator {
 
     public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.debug("Evaluating scenario: hubId={}, name={}", scenario.getHubId(), scenario.getName());
+        log.debug("Evaluating scenario: {}", scenario.getName());
 
         Map<String, SensorStateAvro> sensorsState = snapshot.getSensorsState();
 
@@ -21,30 +21,23 @@ public class ConditionEvaluator {
             String sensorId = entry.getKey();
             Condition condition = entry.getValue();
 
-            // ВРЕМЕННО: пропускаем LUMINOSITY для прохождения тестов
-            if ("LUMINOSITY".equals(condition.getType())) {
-                log.info("Skipping LUMINOSITY condition for sensor {} (temporary workaround)", sensorId);
-                continue;
-            }
-
             SensorStateAvro sensorState = sensorsState.get(sensorId);
+
             if (sensorState == null) {
-                log.debug("Sensor {} not found in snapshot for scenario {}", sensorId, scenario.getName());
+                log.debug("Condition NOT satisfied: sensor '{}' not found in snapshot", sensorId);
                 return false;
             }
 
             boolean satisfied = evaluateCondition(condition, sensorState.getData());
-            log.debug("Condition for sensor {}: type={}, operation={}, value={}, satisfied={}",
-                    sensorId, condition.getType(), condition.getOperation(), condition.getValue(), satisfied);
 
             if (!satisfied) {
-                log.debug("Scenario {} not satisfied: condition failed for sensor {}",
-                        scenario.getName(), sensorId);
+                log.debug("Condition NOT satisfied: sensorId={}, type={}, operation={}, expected={}",
+                        sensorId, condition.getType(), condition.getOperation(), condition.getValue());
                 return false;
             }
         }
 
-        log.info("Scenario {} satisfied for hub {}", scenario.getName(), scenario.getHubId());
+        log.debug("All conditions satisfied for scenario: {}", scenario.getName());
         return true;
     }
 
@@ -68,7 +61,7 @@ public class ConditionEvaluator {
         } else if (sensorData instanceof SwitchSensorAvro) {
             actualValue = ((SwitchSensorAvro) sensorData).getState();
         } else {
-            log.warn("Unexpected sensor data type for boolean condition: {}", sensorData.getClass());
+            log.warn("Unexpected sensor data type for boolean condition: {}", sensorData.getClass().getSimpleName());
             return false;
         }
 
@@ -93,7 +86,6 @@ public class ConditionEvaluator {
                 } else if (sensorData instanceof ClimateSensorAvro) {
                     actualValue = ((ClimateSensorAvro) sensorData).getTemperatureC();
                 } else {
-                    log.warn("Unexpected sensor data type for temperature: {}", sensorData.getClass());
                     return false;
                 }
                 break;
@@ -101,7 +93,6 @@ public class ConditionEvaluator {
                 if (sensorData instanceof ClimateSensorAvro) {
                     actualValue = ((ClimateSensorAvro) sensorData).getHumidity();
                 } else {
-                    log.warn("Unexpected sensor data type for humidity: {}", sensorData.getClass());
                     return false;
                 }
                 break;
@@ -109,7 +100,6 @@ public class ConditionEvaluator {
                 if (sensorData instanceof ClimateSensorAvro) {
                     actualValue = ((ClimateSensorAvro) sensorData).getCo2Level();
                 } else {
-                    log.warn("Unexpected sensor data type for CO2: {}", sensorData.getClass());
                     return false;
                 }
                 break;
@@ -117,17 +107,12 @@ public class ConditionEvaluator {
                 if (sensorData instanceof LightSensorAvro) {
                     actualValue = ((LightSensorAvro) sensorData).getLuminosity();
                 } else {
-                    log.warn("Unexpected sensor data type for luminosity: {}", sensorData.getClass());
                     return false;
                 }
                 break;
             default:
-                log.warn("Unknown condition type: {}", type);
                 return false;
         }
-
-        log.debug("Evaluating numeric condition: type={}, operation={}, actual={}, expected={}",
-                type, operation, actualValue, expectedValue);
 
         switch (operation) {
             case "EQUALS":

@@ -36,6 +36,8 @@ public class KafkaEventProducer {
 
     @PostConstruct
     public void init() {
+        log.info("Initializing KafkaProducer with bootstrap servers: {}", kafkaConfig.getBootstrapServers());
+
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getBootstrapServers());
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -45,7 +47,7 @@ public class KafkaEventProducer {
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
 
         producer = new KafkaProducer<>(props);
-        log.info("KafkaProducer initialized for servers: {}", kafkaConfig.getBootstrapServers());
+        log.info("KafkaProducer initialized successfully");
     }
 
     @PreDestroy
@@ -59,10 +61,7 @@ public class KafkaEventProducer {
 
     public void sendSensorEvent(SensorEventInternal event) {
         try {
-            log.debug("Converting sensor event to Avro: id={}, type={}", event.getId(), event.getType());
             SensorEventAvro avroEvent = sensorEventConverter.toAvro(event);
-
-            log.debug("Serializing Avro event: id={}", event.getId());
             byte[] serializedData = serializeSensorEvent(avroEvent);
 
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(
@@ -83,8 +82,7 @@ public class KafkaEventProducer {
                 }
             });
 
-            producer.flush(); // Важно! Принудительная отправка
-            log.debug("Flushed producer after sending event: id={}", event.getId());
+            producer.flush();
 
         } catch (Exception e) {
             log.error("❌ Error sending sensor event: id={}", event.getId(), e);
@@ -94,10 +92,7 @@ public class KafkaEventProducer {
 
     public void sendHubEvent(HubEventInternal event) {
         try {
-            log.debug("Converting hub event to Avro: hubId={}, type={}", event.getHubId(), event.getType());
             HubEventAvro avroEvent = hubEventConverter.toAvro(event);
-
-            log.debug("Serializing Avro hub event: hubId={}", event.getHubId());
             byte[] serializedData = serializeHubEvent(avroEvent);
 
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(
@@ -119,7 +114,6 @@ public class KafkaEventProducer {
             });
 
             producer.flush();
-            log.debug("Flushed producer after sending hub event: hubId={}", event.getHubId());
 
         } catch (Exception e) {
             log.error("❌ Error sending hub event: hubId={}", event.getHubId(), e);

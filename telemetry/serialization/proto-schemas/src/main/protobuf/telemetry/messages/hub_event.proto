@@ -3,6 +3,7 @@ syntax = "proto3";
 package telemetry.message.event;
 
 import "google/protobuf/timestamp.proto";
+import "telemetry/messages/device_action.proto";
 
 option java_multiple_files = true;
 option java_package = "ru.yandex.practicum.grpc.telemetry.event";
@@ -44,19 +45,6 @@ message ScenarioConditionProto {
   optional int32 value = 4;
 }
 
-message DeviceActionProto {
-  string sensorId = 1;
-  ActionTypeProto type = 2;
-  optional int32 value = 3;
-}
-
-message DeviceActionRequest {
-  string hub_id = 1;
-  string scenario_name = 2;
-  DeviceActionProto action = 3;
-  google.protobuf.Timestamp timestamp = 4;
-}
-
 enum DeviceTypeProto {
   MOTION_SENSOR = 0;
   TEMPERATURE_SENSOR = 1;
@@ -78,11 +66,4 @@ enum ConditionOperationProto {
   EQUALS = 0;
   GREATER_THAN = 1;
   LOWER_THAN = 2;
-}
-
-enum ActionTypeProto {
-  ACTIVATE = 0;
-  DEACTIVATE = 1;
-  INVERSE = 2;
-  SET_VALUE = 3;
 }

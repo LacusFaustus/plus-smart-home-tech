@@ -27,16 +27,20 @@ public class SnapshotProcessor {
     private final KafkaConfig kafkaConfig;
     private final ScenarioService scenarioService;
     private final ConditionEvaluator conditionEvaluator;
-    private final ActionExecutor actionExecutor;
+    private final ActionExecutor actionExecutor;  // Добавлено поле
 
     private KafkaConsumer<String, SensorsSnapshotAvro> consumer;
     private volatile boolean running = true;
 
     public void start() {
+        log.info("╔════════════════════════════════════════════════════════════╗");
+        log.info("║           SNAPSHOT PROCESSOR STARTED                       ║");
+        log.info("╚════════════════════════════════════════════════════════════╝");
+
         initializeConsumer();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("Shutdown hook received for SnapshotProcessor");
+            log.info("🛑 Shutdown hook received for SnapshotProcessor");
             running = false;
             if (consumer != null) {
                 consumer.wakeup();
@@ -45,28 +49,38 @@ public class SnapshotProcessor {
 
         try {
             consumer.subscribe(List.of(kafkaConfig.getTopics().getSnapshots()));
-            log.info("SnapshotProcessor subscribed to topic: {}", kafkaConfig.getTopics().getSnapshots());
+            log.info("📡 SnapshotProcessor subscribed to topic: {}", kafkaConfig.getTopics().getSnapshots());
 
             while (running) {
                 ConsumerRecords<String, SensorsSnapshotAvro> records = consumer.poll(Duration.ofMillis(1000));
 
+                if (!records.isEmpty()) {
+                    log.info("📦 RECEIVED {} snapshot records from Kafka", records.count());
+                }
+
                 for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
                     SensorsSnapshotAvro snapshot = record.value();
                     if (snapshot == null) {
-                        log.warn("Received null snapshot at offset: {}", record.offset());
+                        log.warn("⚠️ Received null snapshot at offset: {}", record.offset());
                         continue;
                     }
 
-                    log.info("Processing snapshot: hubId={}, timestamp={}, sensorsCount={}",
-                            snapshot.getHubId(), snapshot.getTimestamp(), snapshot.getSensorsState().size());
+                    log.info("Processing snapshot: hubId={}, sensorsCount={}",
+                            snapshot.getHubId(), snapshot.getSensorsState().size());
 
                     try {
                         List<Scenario> scenarios = scenarioService.getScenariosByHubId(snapshot.getHubId());
-                        log.debug("Found {} scenarios for hub {}", scenarios.size(), snapshot.getHubId());
+                        log.info("Found {} scenarios for hubId={}", scenarios.size(), snapshot.getHubId());
 
                         for (Scenario scenario : scenarios) {
-                            if (conditionEvaluator.evaluateScenario(scenario, snapshot)) {
+                            log.info("Checking scenario: {}", scenario.getName());
+                            boolean satisfied = conditionEvaluator.evaluateScenario(scenario, snapshot);
+
+                            if (satisfied) {
+                                log.info("✅ Scenario '{}' satisfied! Executing actions...", scenario.getName());
                                 actionExecutor.executeActions(scenario, snapshot);
+                            } else {
+                                log.info("❌ Scenario '{}' NOT satisfied", scenario.getName());
                             }
                         }
                     } catch (Exception e) {
@@ -76,20 +90,22 @@ public class SnapshotProcessor {
 
                 if (!records.isEmpty()) {
                     consumer.commitSync();
-                    log.debug("Committed offsets for {} snapshot records", records.count());
+                    log.info("✅ Committed offsets for {} snapshot records", records.count());
                 }
             }
 
         } catch (WakeupException e) {
-            log.info("Wakeup exception received for SnapshotProcessor");
+            log.info("⚠️ Wakeup exception received for SnapshotProcessor");
         } catch (Exception e) {
-            log.error("Unexpected error in SnapshotProcessor", e);
+            log.error("❌ Unexpected error in SnapshotProcessor", e);
         } finally {
             closeConsumer();
         }
     }
 
     private void initializeConsumer() {
+        log.info("Initializing snapshot consumer...");
+
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getBootstrapServers());
         props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getConsumer().getSnapshot().getGroupId());
@@ -102,8 +118,7 @@ public class SnapshotProcessor {
         props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
 
         consumer = new KafkaConsumer<>(props);
-        log.info("SnapshotProcessor consumer initialized with group.id: {}",
-                kafkaConfig.getConsumer().getSnapshot().getGroupId());
+        log.info("Snapshot consumer initialized with group.id: {}", kafkaConfig.getConsumer().getSnapshot().getGroupId());
     }
 
     private void closeConsumer() {
@@ -111,10 +126,10 @@ public class SnapshotProcessor {
             if (consumer != null) {
                 consumer.commitSync();
                 consumer.close();
-                log.info("SnapshotProcessor consumer closed");
+                log.info("✅ SnapshotProcessor consumer closed");
             }
         } catch (Exception e) {
-            log.error("Error closing SnapshotProcessor consumer", e);
+            log.error("❌ Error closing SnapshotProcessor consumer", e);
         }
     }
 

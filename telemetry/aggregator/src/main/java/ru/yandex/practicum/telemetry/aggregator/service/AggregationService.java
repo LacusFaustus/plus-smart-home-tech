@@ -16,22 +16,27 @@ public class AggregationService {
 
     private final Map<String, SensorsSnapshotAvro> snapshots = new ConcurrentHashMap<>();
 
-    /**
-     * Обновляет снапшот на основе полученного события от датчика.
-     *
-     * @param event событие от датчика
-     * @return Optional с обновлённым снапшотом, если данные изменились, иначе Optional.empty()
-     */
     public Optional<SensorsSnapshotAvro> updateSnapshot(SensorEventAvro event) {
         String hubId = event.getHubId();
         String sensorId = event.getId();
 
-        log.info("Processing sensor event: hubId={}, sensorId={}, type={}, timestamp={}",
-                hubId, sensorId, event.getPayload().getClass().getSimpleName(), event.getTimestamp());
+        log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+        log.info("║                         AGGREGATOR: PROCESSING SENSOR EVENT               ║");
+        log.info("╠════════════════════════════════════════════════════════════════════════════╣");
+        log.info("║ 📥 INPUT:                                                                  ║");
+        log.info("║    hubId={}", hubId);
+        log.info("║    sensorId={}", sensorId);
+        log.info("║    timestamp={}", event.getTimestamp());
+        log.info("║    payloadType={}", event.getPayload().getClass().getSimpleName());
+        log.info("║    payloadValue={}", event.getPayload());
+        log.info("╚════════════════════════════════════════════════════════════════════════════╝");
 
-        // Получаем или создаём снапшот для хаба
+        // Получаем или создаем снапшот
         SensorsSnapshotAvro snapshot = snapshots.computeIfAbsent(hubId, id -> {
-            log.info("Creating new snapshot for hub: {}", hubId);
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ DECISION: Creating new snapshot for hubId={}", hubId);
+            log.info("│ REASON: First event received from this hub                              │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
             return SensorsSnapshotAvro.newBuilder()
                     .setHubId(hubId)
                     .setTimestamp(event.getTimestamp())
@@ -39,52 +44,93 @@ public class AggregationService {
                     .build();
         });
 
-        // Проверяем существующее состояние датчика
+        log.info("📸 Current snapshot state:");
+        log.info("    hubId={}", snapshot.getHubId());
+        log.info("    snapshotTimestamp={}", snapshot.getTimestamp());
+        log.info("    sensorsCount={}", snapshot.getSensorsState().size());
+
+        // Проверяем существующее состояние
         SensorStateAvro existingState = snapshot.getSensorsState().get(sensorId);
 
-        // Если событие устаревшее - игнорируем
+        if (existingState != null) {
+            log.info("📊 Existing sensor state:");
+            log.info("    timestamp={}", existingState.getTimestamp());
+            log.info("    data={}", existingState.getData());
+        } else {
+            log.info("📊 Existing sensor state: none (first event for this sensor)");
+        }
+
+        // ПРОВЕРКА 1: устаревшее событие
         if (existingState != null && existingState.getTimestamp() > event.getTimestamp()) {
-            log.debug("Ignoring outdated event for sensor: {} (event timestamp: {}, current timestamp: {})",
-                    sensorId, event.getTimestamp(), existingState.getTimestamp());
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ DECISION: Ignoring outdated event                                      │");
+            log.info("│ REASON: Event timestamp {} is OLDER than current timestamp {}",
+                    event.getTimestamp(), existingState.getTimestamp());
+            log.info("│ ACTION: Snapshot will NOT be updated                                   │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
+            log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+            log.info("║ OUTPUT: Optional.empty() - no snapshot update                              ║");
+            log.info("╚════════════════════════════════════════════════════════════════════════════╝\n");
             return Optional.empty();
         }
 
-        // Проверяем, изменились ли данные
+        // ПРОВЕРКА 2: данные не изменились
         if (existingState != null && existingState.getData().equals(event.getPayload())) {
-            log.info("Data for sensor {} hasn't changed (same value), skipping snapshot update", sensorId);
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ DECISION: Skipping snapshot update                                     │");
+            log.info("│ REASON: Sensor data unchanged                                          │");
+            log.info("│    oldValue={}", existingState.getData());
+            log.info("│    newValue={}", event.getPayload());
+            log.info("│ ACTION: Snapshot will NOT be updated                                   │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
+            log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+            log.info("║ OUTPUT: Optional.empty() - no snapshot update                              ║");
+            log.info("╚════════════════════════════════════════════════════════════════════════════╝\n");
             return Optional.empty();
         }
 
-        // Создаём новое состояние датчика
+        // ПРИНЯТИЕ РЕШЕНИЯ: обновляем снапшот
+        if (existingState == null) {
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ DECISION: Adding new sensor to snapshot                                │");
+            log.info("│ REASON: First event received for sensorId={}", sensorId);
+            log.info("│ ACTION: Creating new SensorState and adding to snapshot                │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
+        } else {
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ DECISION: Updating existing sensor data                                │");
+            log.info("│ REASON: Sensor data CHANGED                                            │");
+            log.info("│    oldValue={}", existingState.getData());
+            log.info("│    newValue={}", event.getPayload());
+            log.info("│ ACTION: Replacing SensorState in snapshot                              │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
+        }
+
+        // Создаем новое состояние
         SensorStateAvro newState = SensorStateAvro.newBuilder()
                 .setTimestamp(event.getTimestamp())
                 .setData(event.getPayload())
                 .build();
 
-        // Логируем изменение
-        if (existingState == null) {
-            log.info("New sensor detected: hubId={}, sensorId={}, value={}",
-                    hubId, sensorId, getSensorValueString(event));
-        } else {
-            log.info("Sensor data changed: hubId={}, sensorId={}, oldValue={}, newValue={}",
-                    hubId, sensorId, getSensorValueString(existingState.getData()), getSensorValueString(event));
-        }
-
         // Обновляем снапшот
         snapshot.getSensorsState().put(sensorId, newState);
         snapshot.setTimestamp(event.getTimestamp());
 
-        log.info("Snapshot updated for hub: {}, sensors count: {}", hubId, snapshot.getSensorsState().size());
+        log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+        log.info("│ ✅ SNAPSHOT UPDATED SUCCESSFULLY                                        │");
+        log.info("├─────────────────────────────────────────────────────────────────────────┤");
+        log.info("│ 📤 OUTPUT:                                                               │");
+        log.info("│    hubId={}", hubId);
+        log.info("│    snapshotTimestamp={}", snapshot.getTimestamp());
+        log.info("│    totalSensors={}", snapshot.getSensorsState().size());
+        log.info("│    updatedSensorId={}", sensorId);
+        log.info("│    newSensorData={}", newState.getData());
+        log.info("└─────────────────────────────────────────────────────────────────────────┘");
+        log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+        log.info("║ OUTPUT: Optional.of(snapshot) - snapshot will be sent to Kafka             ║");
+        log.info("╚════════════════════════════════════════════════════════════════════════════╝\n");
 
         return Optional.of(snapshot);
-    }
-
-    private String getSensorValueString(SensorEventAvro event) {
-        return event.getPayload().toString();
-    }
-
-    private String getSensorValueString(Object data) {
-        return data.toString();
     }
 
     public Map<String, SensorsSnapshotAvro> getSnapshots() {

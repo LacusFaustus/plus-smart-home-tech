@@ -65,7 +65,7 @@ public class AggregationProcessor {
                     continue;
                 }
 
-                log.debug("Received {} records from Kafka", records.count());
+                log.info("📦 AGGREGATOR: Received {} records from Kafka", records.count());
 
                 for (ConsumerRecord<String, SensorEventAvro> record : records) {
                     SensorEventAvro event = record.value();
@@ -74,19 +74,23 @@ public class AggregationProcessor {
                         continue;
                     }
 
+                    log.info("📨 RECORD: offset={}, partition={}, key={}", record.offset(), record.partition(), record.key());
+
                     try {
                         Optional<SensorsSnapshotAvro> updatedSnapshot = aggregationService.updateSnapshot(event);
 
                         if (updatedSnapshot.isPresent()) {
                             sendSnapshot(updatedSnapshot.get());
-                            log.info("Snapshot sent to Kafka for hub: {}", updatedSnapshot.get().getHubId());
+                            log.info("✅ Snapshot sent to Kafka for hub: {}", updatedSnapshot.get().getHubId());
+                        } else {
+                            log.info("⏭️ No snapshot update needed for event: sensorId={}", event.getId());
                         }
                     } catch (Exception e) {
-                        log.error("Error processing event: id={}, hubId={}", event.getId(), event.getHubId(), e);
+                        log.error("❌ Error processing event: id={}, hubId={}", event.getId(), event.getHubId(), e);
                     }
                 }
 
-                // Фиксируем смещения после обработки всей пачки
+                // Фиксируем смещения
                 try {
                     consumer.commitSync();
                     log.debug("Committed offsets for {} records", records.count());

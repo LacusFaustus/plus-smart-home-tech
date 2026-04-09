@@ -1,18 +1,12 @@
 package ru.yandex.practicum.telemetry.analyzer.service;
 
-import com.google.protobuf.Timestamp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.yandex.practicum.grpc.telemetry.event.DeviceActionProto;
-import ru.yandex.practicum.grpc.telemetry.event.DeviceActionRequest;
-import ru.yandex.practicum.grpc.telemetry.hubrouter.HubRouterControllerGrpc;
 import ru.yandex.practicum.kafka.telemetry.event.SensorsSnapshotAvro;
-import ru.yandex.practicum.telemetry.analyzer.config.GrpcClientConfig;
 import ru.yandex.practicum.telemetry.analyzer.model.entity.Action;
 import ru.yandex.practicum.telemetry.analyzer.model.entity.Scenario;
 
-import java.time.Instant;
 import java.util.Map;
 
 @Service
@@ -20,49 +14,40 @@ import java.util.Map;
 @Slf4j
 public class ActionExecutor {
 
-    private final GrpcClientConfig grpcClientConfig;
+    // Временно отключаем gRPC вызовы
+    // private final GrpcClientConfig grpcClientConfig;
 
     public void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.info("Executing actions for scenario: hubId={}, name={}", scenario.getHubId(), scenario.getName());
+        log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+        log.info("║                         ACTION EXECUTOR (MOCK MODE)                        ║");
+        log.info("╠════════════════════════════════════════════════════════════════════════════╣");
+        log.info("║ Executing actions for scenario:                                           ║");
+        log.info("║    hubId={}", scenario.getHubId());
+        log.info("║    name={}", scenario.getName());
+        log.info("║    actionsCount={}", scenario.getActions().size());
+        log.info("╚════════════════════════════════════════════════════════════════════════════╝");
 
-        HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient = grpcClientConfig.getHubRouterClient();
+        int actionIndex = 0;
+        int totalActions = scenario.getActions().size();
 
         for (Map.Entry<String, Action> entry : scenario.getActions().entrySet()) {
+            actionIndex++;
             String sensorId = entry.getKey();
             Action action = entry.getValue();
 
-            DeviceActionRequest request = DeviceActionRequest.newBuilder()
-                    .setHubId(scenario.getHubId())
-                    .setScenarioName(scenario.getName())
-                    .setAction(DeviceActionProto.newBuilder()
-                            .setSensorId(sensorId)
-                            .setTypeValue(mapActionType(action.getType()))
-                            .setValue(action.getValue() != null ? action.getValue() : 0)
-                            .build())
-                    .setTimestamp(Timestamp.newBuilder()
-                            .setSeconds(Instant.now().getEpochSecond())
-                            .setNanos(Instant.now().getNano())
-                            .build())
-                    .build();
-
-            try {
-                hubRouterClient.handleDeviceAction(request);
-                log.info("Action sent to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
-                        scenario.getHubId(), scenario.getName(), sensorId, action.getType(), action.getValue());
-            } catch (Exception e) {
-                log.error("Failed to send action to hub-router: hubId={}, scenario={}, sensorId={}",
-                        scenario.getHubId(), scenario.getName(), sensorId, e);
-            }
+            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
+            log.info("│ ACTION {}/{} (MOCK - gRPC disabled)                                    │", actionIndex, totalActions);
+            log.info("├─────────────────────────────────────────────────────────────────────────┤");
+            log.info("│ ACTION DETAILS:                                                         │");
+            log.info("│    sensorId={}", sensorId);
+            log.info("│    type={}", action.getType());
+            log.info("│    value={}", action.getValue());
+            log.info("│ STATUS: Mock execution - no actual gRPC call sent                       │");
+            log.info("└─────────────────────────────────────────────────────────────────────────┘");
         }
-    }
 
-    private int mapActionType(String type) {
-        switch (type) {
-            case "ACTIVATE": return 0;
-            case "DEACTIVATE": return 1;
-            case "INVERSE": return 2;
-            case "SET_VALUE": return 3;
-            default: return 0;
-        }
+        log.info("╔════════════════════════════════════════════════════════════════════════════╗");
+        log.info("║ ACTION EXECUTION COMPLETED (MOCK) - would send {}/{} actions              ║", totalActions, totalActions);
+        log.info("╚════════════════════════════════════════════════════════════════════════════╝\n");
     }
 }
