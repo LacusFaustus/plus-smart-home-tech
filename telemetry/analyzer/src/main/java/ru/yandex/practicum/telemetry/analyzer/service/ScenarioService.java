@@ -113,78 +113,141 @@ public class ScenarioService {
         log.info("│    conditionsCount={}, actionsCount={}",
                 event.getConditions().size(), event.getActions().size());
 
-        // Логируем каждое условие
-        for (ScenarioConditionAvro condition : event.getConditions()) {
-            log.info("│    condition: sensorId={}, type={}, operation={}, value={}",
-                    condition.getSensorId(), condition.getType(),
-                    condition.getOperation(), condition.getValue());
-        }
+        try {
+            // Логируем каждое условие
+            for (ScenarioConditionAvro condition : event.getConditions()) {
+                log.info("│    condition: sensorId={}, type={}, operation={}, value={}",
+                        condition.getSensorId(), condition.getType(),
+                        condition.getOperation(), condition.getValue());
+            }
 
-        // Логируем каждое действие
-        for (DeviceActionAvro action : event.getActions()) {
-            log.info("│    action: sensorId={}, type={}, value={}",
-                    action.getSensorId(), action.getType(), action.getValue());
-        }
+            // Логируем каждое действие
+            for (DeviceActionAvro action : event.getActions()) {
+                log.info("│    action: sensorId={}, type={}, value={}",
+                        action.getSensorId(), action.getType(), action.getValue());
+            }
 
-        Optional<Scenario> existingScenario = scenarioRepository.findByHubIdAndName(hubId, scenarioName);
+            // Проверяем существующий сценарий
+            Optional<Scenario> existingScenario = scenarioRepository.findByHubIdAndName(hubId, scenarioName);
 
-        Scenario scenario;
-        if (existingScenario.isPresent()) {
-            scenario = existingScenario.get();
+            Scenario scenario;
+            if (existingScenario.isPresent()) {
+                scenario = existingScenario.get();
+                log.info("├─────────────────────────────────────────────────────────────────────────┤");
+                log.info("│ DECISION: Updating existing scenario                                   │");
+                log.info("│ REASON: Scenario with name='{}' already exists for hubId={}", scenarioName, hubId);
+                log.info("│ ACTION: Clearing existing conditions and actions before update         │");
+
+                // Очищаем существующие связи
+                scenario.getConditions().clear();
+                scenario.getActions().clear();
+
+                // Сохраняем изменения перед добавлением новых (важно для JPA)
+                scenarioRepository.saveAndFlush(scenario);
+            } else {
+                scenario = Scenario.builder()
+                        .hubId(hubId)
+                        .name(scenarioName)
+                        .conditions(new HashMap<>())
+                        .actions(new HashMap<>())
+                        .build();
+                log.info("├─────────────────────────────────────────────────────────────────────────┤");
+                log.info("│ DECISION: Creating new scenario                                        │");
+                log.info("│ REASON: No existing scenario with name='{}' for hubId={}", scenarioName, hubId);
+            }
+
+            // Сохраняем или обновляем сценарий (нужен ID для связей)
+            Scenario savedScenario = scenarioRepository.save(scenario);
+            log.info("│ ✅ Scenario saved/updated with id={}", savedScenario.getId());
+
+            // Добавляем условия
+            int conditionCount = 0;
+            for (ScenarioConditionAvro conditionAvro : event.getConditions()) {
+                try {
+                    String sensorId = conditionAvro.getSensorId();
+
+                    // Проверяем существование сенсора
+                    Optional<Sensor> sensor = sensorRepository.findByIdAndHubId(sensorId, hubId);
+                    if (sensor.isEmpty()) {
+                        log.warn("│    ⚠️ Sensor '{}' not found in database, creating...", sensorId);
+                        Sensor newSensor = Sensor.builder()
+                                .id(sensorId)
+                                .hubId(hubId)
+                                .build();
+                        sensorRepository.save(newSensor);
+                    }
+
+                    Condition condition = Condition.builder()
+                            .type(conditionAvro.getType().toString())
+                            .operation(conditionAvro.getOperation().toString())
+                            .value(conditionAvro.getValue() instanceof Integer ? (Integer) conditionAvro.getValue() : null)
+                            .build();
+                    condition = conditionRepository.save(condition);
+                    savedScenario.getConditions().put(sensorId, condition);
+                    conditionCount++;
+                    log.info("│    ✅ Condition added for sensorId={}: type={}, operation={}, value={}",
+                            sensorId, condition.getType(), condition.getOperation(), condition.getValue());
+                } catch (Exception e) {
+                    log.error("│    ❌ Failed to add condition for sensorId={}: {}",
+                            conditionAvro.getSensorId(), e.getMessage(), e);
+                    throw new RuntimeException("Failed to add condition", e);
+                }
+            }
+
+            // Добавляем действия
+            int actionCount = 0;
+            for (DeviceActionAvro actionAvro : event.getActions()) {
+                try {
+                    String sensorId = actionAvro.getSensorId();
+
+                    // Проверяем существование сенсора
+                    Optional<Sensor> sensor = sensorRepository.findByIdAndHubId(sensorId, hubId);
+                    if (sensor.isEmpty()) {
+                        log.warn("│    ⚠️ Sensor '{}' not found in database, creating...", sensorId);
+                        Sensor newSensor = Sensor.builder()
+                                .id(sensorId)
+                                .hubId(hubId)
+                                .build();
+                        sensorRepository.save(newSensor);
+                    }
+
+                    Action action = Action.builder()
+                            .type(actionAvro.getType().toString())
+                            .value(actionAvro.getValue())
+                            .build();
+                    action = actionRepository.save(action);
+                    savedScenario.getActions().put(sensorId, action);
+                    actionCount++;
+                    log.info("│    ✅ Action added for sensorId={}: type={}, value={}",
+                            sensorId, action.getType(), action.getValue());
+                } catch (Exception e) {
+                    log.error("│    ❌ Failed to add action for sensorId={}: {}",
+                            actionAvro.getSensorId(), e.getMessage(), e);
+                    throw new RuntimeException("Failed to add action", e);
+                }
+            }
+
+            // Финальное сохранение сценария со всеми связями
+            Scenario finalScenario = scenarioRepository.save(savedScenario);
+
             log.info("├─────────────────────────────────────────────────────────────────────────┤");
-            log.info("│ DECISION: Updating existing scenario                                   │");
-            log.info("│ REASON: Scenario with name='{}' already exists for hubId={}", scenarioName, hubId);
-            log.info("│ ACTION: Clearing existing conditions and actions before update         │");
-            scenario.getConditions().clear();
-            scenario.getActions().clear();
-        } else {
-            scenario = Scenario.builder()
-                    .hubId(hubId)
-                    .name(scenarioName)
-                    .conditions(new HashMap<>())
-                    .actions(new HashMap<>())
-                    .build();
-            log.info("├─────────────────────────────────────────────────────────────────────────┤");
-            log.info("│ DECISION: Creating new scenario                                        │");
-            log.info("│ REASON: No existing scenario with name='{}' for hubId={}", scenarioName, hubId);
+            log.info("│ ✅ SCENARIO SAVED SUCCESSFULLY                                           │");
+            log.info("│ 📤 OUTPUT: id={}, hubId={}, name={}",
+                    finalScenario.getId(), finalScenario.getHubId(), finalScenario.getName());
+            log.info("│    totalConditions={}, totalActions={}",
+                    finalScenario.getConditions().size(), finalScenario.getActions().size());
+            log.info("└─────────────────────────────────────────────────────────────────────────┘\n");
+
+        } catch (Exception e) {
+            log.error("├─────────────────────────────────────────────────────────────────────────┤");
+            log.error("│ ❌ FAILED TO PROCESS SCENARIO                                           │");
+            log.error("│ REASON: {}", e.getMessage());
+            log.error("│ STACK: {}", e.getClass().getName());
+            log.error("└─────────────────────────────────────────────────────────────────────────┘\n");
+
+            // Пробрасываем исключение для отката транзакции
+            throw new RuntimeException("Failed to process scenario: " + scenarioName, e);
         }
-
-        // Добавляем условия
-        for (ScenarioConditionAvro conditionAvro : event.getConditions()) {
-            String sensorId = conditionAvro.getSensorId();
-
-            Condition condition = Condition.builder()
-                    .type(conditionAvro.getType().toString())
-                    .operation(conditionAvro.getOperation().toString())
-                    .value(conditionAvro.getValue() instanceof Integer ? (Integer) conditionAvro.getValue() : null)
-                    .build();
-            condition = conditionRepository.save(condition);
-            scenario.getConditions().put(sensorId, condition);
-            log.info("│    ✅ Condition added for sensorId={}: type={}, operation={}, value={}",
-                    sensorId, condition.getType(), condition.getOperation(), condition.getValue());
-        }
-
-        // Добавляем действия
-        for (DeviceActionAvro actionAvro : event.getActions()) {
-            String sensorId = actionAvro.getSensorId();
-
-            Action action = Action.builder()
-                    .type(actionAvro.getType().toString())
-                    .value(actionAvro.getValue())
-                    .build();
-            action = actionRepository.save(action);
-            scenario.getActions().put(sensorId, action);
-            log.info("│    ✅ Action added for sensorId={}: type={}, value={}",
-                    sensorId, action.getType(), action.getValue());
-        }
-
-        Scenario saved = scenarioRepository.save(scenario);
-        log.info("├─────────────────────────────────────────────────────────────────────────┤");
-        log.info("│ ✅ SCENARIO SAVED SUCCESSFULLY                                           │");
-        log.info("│ 📤 OUTPUT: id={}, hubId={}, name={}", saved.getId(), saved.getHubId(), saved.getName());
-        log.info("│    totalConditions={}, totalActions={}",
-                saved.getConditions().size(), saved.getActions().size());
-        log.info("└─────────────────────────────────────────────────────────────────────────┘\n");
     }
 
     private void processScenarioRemoved(String hubId, ScenarioRemovedEventAvro event) {

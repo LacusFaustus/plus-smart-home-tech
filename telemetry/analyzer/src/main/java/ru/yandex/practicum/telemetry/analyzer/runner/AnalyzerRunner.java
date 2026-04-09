@@ -7,7 +7,8 @@ import org.springframework.stereotype.Component;
 import ru.yandex.practicum.telemetry.analyzer.processor.HubEventProcessor;
 import ru.yandex.practicum.telemetry.analyzer.processor.SnapshotProcessor;
 
-import java.util.concurrent.CountDownLatch;
+import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -17,6 +18,7 @@ public class AnalyzerRunner implements CommandLineRunner {
 
     private final SnapshotProcessor snapshotProcessor;
     private final HubEventProcessor hubEventProcessor;
+    private final DataSource dataSource;
 
     @Override
     public void run(String... args) throws InterruptedException {
@@ -24,15 +26,35 @@ public class AnalyzerRunner implements CommandLineRunner {
         log.info("║           STARTING ANALYZER                                 ║");
         log.info("╚════════════════════════════════════════════════════════════╝");
 
-        // Увеличенная задержка для полной инициализации Spring контекста
-        Thread.sleep(10000);
+        // Ожидание готовности базы данных
+        log.info("Waiting for database to be ready...");
+        int retries = 10;
+        while (retries > 0) {
+            try (Connection conn = dataSource.getConnection()) {
+                if (conn.isValid(2)) {
+                    log.info("✅ Database connection successful!");
+                    break;
+                }
+            } catch (Exception e) {
+                log.warn("Database not ready yet, waiting... ({} retries left)", retries);
+                retries--;
+                if (retries == 0) {
+                    log.error("Failed to connect to database after 10 attempts", e);
+                    throw new RuntimeException("Database connection failed", e);
+                }
+                Thread.sleep(3000);
+            }
+        }
+
+        // Небольшая задержка перед запуском Kafka consumers
+        Thread.sleep(5000);
+        log.info("Starting Kafka consumers...");
 
         Thread hubEventsThread = new Thread(hubEventProcessor);
         hubEventsThread.setName("HubEventHandlerThread");
         hubEventsThread.start();
 
-        // Дополнительная задержка для подписки на Kafka
-        Thread.sleep(5000);
+        Thread.sleep(3000);
 
         log.info("✅ All processors initialized, starting snapshot processing...");
         snapshotProcessor.start();

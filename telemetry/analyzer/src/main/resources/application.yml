@@ -6,6 +6,15 @@ spring:
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000           # Максимальное время ожидания соединения (мс)
+      idle-timeout: 600000                # Время, после которого idle-соединение будет закрыто (10 минут)
+      max-lifetime: 1800000               # Максимальное время жизни соединения в пуле (30 минут)
+      maximum-pool-size: 10               # Максимальный размер пула
+      minimum-idle: 2                     # Минимальное количество idle-соединений в пуле
+      validation-timeout: 5000            # Таймаут для проверки соединения
+      leak-detection-threshold: 60000     # Порог для обнаружения утечек соединений
+      connection-test-query: SELECT 1     # Запрос для проверки "живости" соединения
   jpa:
     hibernate:
       ddl-auto: update
@@ -13,7 +22,9 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: true
+        jdbc:
+          batch_size: 20                  # Оптимизация для пакетной вставки
+    show-sql: false                       # Отключаем для тестов (оставляем false для производительности)
   sql:
     init:
       mode: always
