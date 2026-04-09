@@ -54,15 +54,9 @@ public class HubEventProcessor implements Runnable {
             consumer.subscribe(List.of(kafkaConfig.getTopics().getHubs()));
             log.info("📡 HubEventProcessor subscribed to topic: {}", kafkaConfig.getTopics().getHubs());
 
-            int assignmentRetries = 0;
-            while (consumer.assignment().isEmpty() && assignmentRetries < 30) {
-                consumer.poll(Duration.ofMillis(100));
-                assignmentRetries++;
-            }
-            log.info("✅ Assigned partitions: {}", consumer.assignment());
-
-            readyLatch.countDown();
-            log.info("✅ HubEventProcessor is READY to receive messages");
+            // Принудительно вызываем poll для назначения партиций
+            consumer.poll(Duration.ofMillis(100));
+            log.info("✅ HubEventProcessor is READY to receive messages, assigned partitions: {}", consumer.assignment());
 
             while (running) {
                 ConsumerRecords<String, HubEventAvro> records = consumer.poll(Duration.ofMillis(1000));
@@ -104,9 +98,7 @@ public class HubEventProcessor implements Runnable {
     }
 
     private void initializeConsumer() {
-        log.info("┌─────────────────────────────────────────────────");
-        log.info("│ INITIALIZING HUB EVENT CONSUMER");
-        log.info("├─────────────────────────────────────────────────");
+        log.info("Initializing hub event consumer...");
 
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getBootstrapServers());
@@ -121,12 +113,13 @@ public class HubEventProcessor implements Runnable {
 
         consumer = new KafkaConsumer<>(props);
 
-        log.info("│ ✅ Consumer initialized:");
-        log.info("│    bootstrap.servers={}", kafkaConfig.getBootstrapServers());
-        log.info("│    group.id={}", kafkaConfig.getConsumer().getHubEvent().getGroupId());
-        log.info("│    auto.offset.reset={}", kafkaConfig.getConsumer().getHubEvent().getAutoOffsetReset());
-        log.info("│    max.poll.records={}", kafkaConfig.getConsumer().getHubEvent().getMaxPollRecords());
-        log.info("└─────────────────────────────────────────────────\n");
+        // Проверяем, что можем получить список топиков
+        try {
+            consumer.listTopics().keySet().forEach(topic -> log.debug("Available topic: {}", topic));
+            log.info("✅ Successfully connected to Kafka");
+        } catch (Exception e) {
+            log.error("❌ Failed to connect to Kafka", e);
+        }
     }
 
     private void closeConsumer() {
