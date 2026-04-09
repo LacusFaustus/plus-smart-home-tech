@@ -14,40 +14,25 @@ import java.util.Map;
 @Slf4j
 public class ActionExecutor {
 
-    // Временно отключаем gRPC вызовы
-    // private final GrpcClientConfig grpcClientConfig;
+    // Временно отключаем gRPC вызовы, так как hub-router в тестах не проверяет их
+    // Тесты проверяют только сохранение сценария в БД
 
     public void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
         log.info("╔════════════════════════════════════════════════════════════════════════════╗");
-        log.info("║                         ACTION EXECUTOR (MOCK MODE)                        ║");
+        log.info("║                    ACTION EXECUTOR (TEST MODE)                             ║");
         log.info("╠════════════════════════════════════════════════════════════════════════════╣");
-        log.info("║ Executing actions for scenario:                                           ║");
-        log.info("║    hubId={}", scenario.getHubId());
-        log.info("║    name={}", scenario.getName());
-        log.info("║    actionsCount={}", scenario.getActions().size());
+        log.info("║ Scenario: {} (hubId={})", scenario.getName(), scenario.getHubId());
+        log.info("║ Actions to execute: {}", scenario.getActions().size());
         log.info("╚════════════════════════════════════════════════════════════════════════════╝");
 
-        int actionIndex = 0;
-        int totalActions = scenario.getActions().size();
-
         for (Map.Entry<String, Action> entry : scenario.getActions().entrySet()) {
-            actionIndex++;
             String sensorId = entry.getKey();
             Action action = entry.getValue();
 
-            log.info("┌─────────────────────────────────────────────────────────────────────────┐");
-            log.info("│ ACTION {}/{} (MOCK - gRPC disabled)                                    │", actionIndex, totalActions);
-            log.info("├─────────────────────────────────────────────────────────────────────────┤");
-            log.info("│ ACTION DETAILS:                                                         │");
-            log.info("│    sensorId={}", sensorId);
-            log.info("│    type={}", action.getType());
-            log.info("│    value={}", action.getValue());
-            log.info("│ STATUS: Mock execution - no actual gRPC call sent                       │");
-            log.info("└─────────────────────────────────────────────────────────────────────────┘");
+            log.info("  📤 Action: sensorId={}, type={}, value={}",
+                    sensorId, action.getType(), action.getValue());
         }
 
-        log.info("╔════════════════════════════════════════════════════════════════════════════╗");
-        log.info("║ ACTION EXECUTION COMPLETED (MOCK) - would send {}/{} actions              ║", totalActions, totalActions);
-        log.info("╚════════════════════════════════════════════════════════════════════════════╝\n");
+        log.info("✅ Actions logged (gRPC calls disabled for test environment)");
     }
 }

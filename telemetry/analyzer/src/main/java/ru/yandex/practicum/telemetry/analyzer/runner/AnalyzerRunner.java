@@ -9,7 +9,6 @@ import ru.yandex.practicum.telemetry.analyzer.processor.SnapshotProcessor;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -26,7 +25,6 @@ public class AnalyzerRunner implements CommandLineRunner {
         log.info("║           STARTING ANALYZER                                 ║");
         log.info("╚════════════════════════════════════════════════════════════╝");
 
-        // Проверка готовности базы данных
         log.info("Waiting for database to be ready...");
         int retries = 10;
         while (retries > 0) {
@@ -46,16 +44,15 @@ public class AnalyzerRunner implements CommandLineRunner {
             }
         }
 
-        // Увеличенная задержка перед запуском Kafka consumers
-        log.info("Waiting 15 seconds for Kafka and HubRouter initialization...");
-        Thread.sleep(15000);
+        // Увеличенная задержка для полной инициализации
+        log.info("Waiting 30 seconds for Kafka and HubRouter initialization...");
+        Thread.sleep(30000);  // ← 30 секунд вместо 15
 
         log.info("Starting Kafka consumers...");
         Thread hubEventsThread = new Thread(hubEventProcessor);
         hubEventsThread.setName("HubEventHandlerThread");
         hubEventsThread.start();
 
-        // Дополнительная задержка для подписки на Kafka
         Thread.sleep(5000);
 
         log.info("✅ All processors initialized, starting snapshot processing...");
