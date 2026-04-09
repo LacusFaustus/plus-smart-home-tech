@@ -33,7 +33,7 @@ public class AnalyzerRunner implements CommandLineRunner {
         log.info("║           STARTING ANALYZER                                 ║");
         log.info("╚════════════════════════════════════════════════════════════╝");
 
-        // Проверка готовности базы данных
+        // Проверка базы данных
         log.info("Waiting for database to be ready...");
         int retries = 10;
         while (retries > 0) {
@@ -46,42 +46,25 @@ public class AnalyzerRunner implements CommandLineRunner {
                 log.warn("Database not ready yet, waiting... ({} retries left)", retries);
                 retries--;
                 if (retries == 0) {
-                    log.error("Failed to connect to database after 10 attempts", e);
+                    log.error("Failed to connect to database", e);
                     throw new RuntimeException("Database connection failed", e);
                 }
                 Thread.sleep(3000);
             }
         }
 
-        // Проверка готовности Kafka
-        log.info("Checking Kafka connection...");
-        retries = 10;
-        while (retries > 0) {
-            try (KafkaConsumer<String, String> testConsumer = new KafkaConsumer<>(getKafkaProperties())) {
-                testConsumer.listTopics();
-                log.info("✅ Kafka connection successful!");
-                break;
-            } catch (Exception e) {
-                log.warn("Kafka not ready yet, waiting... ({} retries left)", retries);
-                retries--;
-                if (retries == 0) {
-                    log.error("Failed to connect to Kafka after 10 attempts", e);
-                    throw new RuntimeException("Kafka connection failed", e);
-                }
-                Thread.sleep(3000);
-            }
-        }
-
-        // Увеличенная задержка для полной инициализации
         log.info("Waiting 30 seconds for Kafka and HubRouter initialization...");
         Thread.sleep(30000);
 
         log.info("Starting Kafka consumers...");
+
+        // Запускаем HubEventProcessor в отдельном потоке
         Thread hubEventsThread = new Thread(hubEventProcessor);
         hubEventsThread.setName("HubEventHandlerThread");
         hubEventsThread.start();
+        log.info("HubEventProcessor thread started");
 
-        // Даем время на подписку
+        // Даем время на инициализацию consumer
         Thread.sleep(5000);
 
         log.info("✅ All processors initialized, starting snapshot processing...");

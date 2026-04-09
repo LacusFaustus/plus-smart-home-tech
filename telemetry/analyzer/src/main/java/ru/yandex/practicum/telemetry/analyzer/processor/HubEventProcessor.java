@@ -36,14 +36,11 @@ public class HubEventProcessor implements Runnable {
 
     @Override
     public void run() {
-        log.info("╔════════════════════════════════════════════════════════════╗");
-        log.info("║           HUB EVENT PROCESSOR STARTED                      ║");
-        log.info("╚════════════════════════════════════════════════════════════╝");
-
+        log.info("HubEventProcessor run() method started");
         initializeConsumer();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("🛑 Shutdown hook received for HubEventProcessor");
+            log.info("Shutdown hook received for HubEventProcessor");
             running = false;
             if (consumer != null) {
                 consumer.wakeup();
@@ -52,11 +49,11 @@ public class HubEventProcessor implements Runnable {
 
         try {
             consumer.subscribe(List.of(kafkaConfig.getTopics().getHubs()));
-            log.info("📡 HubEventProcessor subscribed to topic: {}", kafkaConfig.getTopics().getHubs());
+            log.info("Subscribed to topic: {}", kafkaConfig.getTopics().getHubs());
 
-            // Принудительно вызываем poll для назначения партиций
+            // Принудительно получаем назначение партиций
             consumer.poll(Duration.ofMillis(100));
-            log.info("✅ HubEventProcessor is READY to receive messages, assigned partitions: {}", consumer.assignment());
+            log.info("Assigned partitions: {}", consumer.assignment());
 
             while (running) {
                 ConsumerRecords<String, HubEventAvro> records = consumer.poll(Duration.ofMillis(1000));
@@ -68,30 +65,28 @@ public class HubEventProcessor implements Runnable {
                 for (ConsumerRecord<String, HubEventAvro> record : records) {
                     HubEventAvro event = record.value();
                     if (event == null) {
-                        log.warn("⚠️ Received null hub event at offset: {}", record.offset());
+                        log.warn("Received null event at offset: {}", record.offset());
                         continue;
                     }
 
-                    log.debug("Processing hub event: hubId={}, offset={}, partition={}",
-                            event.getHubId(), record.offset(), record.partition());
+                    log.debug("Processing event: hubId={}, offset={}", event.getHubId(), record.offset());
 
                     try {
                         scenarioService.processHubEvent(event);
                     } catch (Exception e) {
-                        log.error("❌ Error processing hub event for hubId: {}", event.getHubId(), e);
+                        log.error("Error processing hub event", e);
                     }
                 }
 
                 if (!records.isEmpty()) {
                     consumer.commitSync();
-                    log.info("✅ Committed offsets for {} hub event records", records.count());
+                    log.info("Committed offsets for {} records", records.count());
                 }
             }
-
         } catch (WakeupException e) {
-            log.info("⚠️ Wakeup exception received for HubEventProcessor");
+            log.info("Wakeup exception received");
         } catch (Exception e) {
-            log.error("❌ Unexpected error in HubEventProcessor", e);
+            log.error("Unexpected error", e);
         } finally {
             closeConsumer();
         }
