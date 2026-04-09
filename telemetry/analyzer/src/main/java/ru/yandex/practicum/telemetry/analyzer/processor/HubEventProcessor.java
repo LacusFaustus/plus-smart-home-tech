@@ -54,6 +54,13 @@ public class HubEventProcessor implements Runnable {
             consumer.subscribe(List.of(kafkaConfig.getTopics().getHubs()));
             log.info("📡 HubEventProcessor subscribed to topic: {}", kafkaConfig.getTopics().getHubs());
 
+            int assignmentRetries = 0;
+            while (consumer.assignment().isEmpty() && assignmentRetries < 30) {
+                consumer.poll(Duration.ofMillis(100));
+                assignmentRetries++;
+            }
+            log.info("✅ Assigned partitions: {}", consumer.assignment());
+
             readyLatch.countDown();
             log.info("✅ HubEventProcessor is READY to receive messages");
 
