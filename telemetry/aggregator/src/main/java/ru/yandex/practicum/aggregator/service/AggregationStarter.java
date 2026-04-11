@@ -69,52 +69,60 @@ public class AggregationStarter {
 
     private void updateSnapshot(SensorEventAvro event) {
         String hubId = event.getHubId().toString();
-        SensorsSnapshotAvro snapshot = snapshots.computeIfAbsent(hubId,
-                k -> SensorsSnapshotAvro.newBuilder()
-                        .setHubId(hubId)
-                        .setTimestamp(Instant.now())
-                        .setSensorsState(new HashMap<>())
-                        .build());
-
         String sensorId = event.getId().toString();
-        SensorStateAvro currentState = snapshot.getSensorsState().get(sensorId);
 
-        // Всегда обновляем состояние
+        // 1. Создаем новое состояние датчика из события
         SensorStateAvro newState = SensorStateAvro.newBuilder()
                 .setTimestamp(event.getTimestamp())
                 .setData(event.getPayload())
                 .build();
 
-// 1. Всегда обновляем состояние в мапе
-        snapshot.getSensorsState().put(sensorId, newState);
-        snapshot.setTimestamp(event.getTimestamp());
+        // 2. Атомарно обновляем мапу снапшотов
+        SensorsSnapshotAvro snapshotToSend = snapshots.compute(hubId, (key, existingSnapshot) -> {
+            if (existingSnapshot == null) {
+                // Создаем новый снапшот
+                Map<String, SensorStateAvro> states = new HashMap<>();
+                states.put(sensorId, newState);
+                return SensorsSnapshotAvro.newBuilder()
+                        .setHubId(hubId)
+                        .setTimestamp(event.getTimestamp())
+                        .setSensorsState(states)
+                        .build();
+            } else {
+                // Создаем копию существующего снапшота с обновленным состоянием
+                Map<String, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
+                updatedStates.put(sensorId, newState);
 
-// 2. Всегда отправляем снапшот (даже если данные не изменились)
-        sendSnapshot(snapshot);
+                SensorsSnapshotAvro updatedSnapshot = SensorsSnapshotAvro.newBuilder()
+                        .setHubId(existingSnapshot.getHubId())
+                        .setTimestamp(event.getTimestamp())
+                        .setSensorsState(updatedStates)
+                        .build();
 
-// 3. Логируем результат для отладки
-        if (currentState == null || !currentState.equals(newState)) {
-            log.info("Снапшот обновлен и отправлен для хаба {}", hubId);
-        } else {
-            log.debug("Данные датчика {} не изменились, но снапшот отправлен (требование Hub Router)", sensorId);
-        }
+                // Логируем для отладки
+                SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
+                if (oldState == null || !oldState.equals(newState)) {
+                    log.info("Снапшот обновлен и будет отправлен для хаба {}", hubId);
+                } else {
+                    log.debug("Данные датчика {} не изменились, но снапшот будет отправлен", sensorId);
+                }
+
+                return updatedSnapshot;
+            }
+        });
+
+        // 3. Отправляем НОВЫЙ иммутабельный объект
+        sendSnapshot(snapshotToSend);
     }
 
     private void sendSnapshot(SensorsSnapshotAvro snapshot) {
-        ProducerRecord<String, SpecificRecordBase> record = new ProducerRecord<>(
-                kafkaConfig.getTopics().getSnapshots(),
-                snapshot.getHubId().toString(),  // ← toString()
-                snapshot
-        );
-
-        producer.send(record, (metadata, exception) -> {
-            if (exception != null) {
-                log.error("Ошибка отправки снапшота", exception);
-            } else {
-                log.debug("Снапшот отправлен в топик {}, партиция {}",
-                        metadata.topic(), metadata.partition());
-            }
-        });
+        log.debug("Отправка снапшота в топик {}, партиция {}", snapshotTopic, snapshot.getHubId());
+        try {
+            // Важно: не модифицируем snapshot, только читаем
+            kafkaTemplate.send(snapshotTopic, snapshot);
+        } catch (Exception e) {
+            log.error("Ошибка отправки снапшота: {}", e.getMessage(), e);
+        }
     }
 
     @PreDestroy
