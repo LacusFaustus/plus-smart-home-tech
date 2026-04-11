@@ -15,7 +15,6 @@ import ru.yandex.practicum.aggregator.config.KafkaConfig;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +59,8 @@ public class AggregationStarter {
     private void processRecord(ConsumerRecord<String, SpecificRecordBase> record) {
         SensorEventAvro event = (SensorEventAvro) record.value();
         log.info("Получено событие датчика: id={}, hubId={}, timestamp={}",
-                event.getId().toString(),           // ← toString()
-                event.getHubId().toString(),        // ← toString()
+                event.getId().toString(),
+                event.getHubId().toString(),
                 event.getTimestamp());
 
         updateSnapshot(event);
@@ -81,7 +80,7 @@ public class AggregationStarter {
         SensorsSnapshotAvro snapshotToSend = snapshots.compute(hubId, (key, existingSnapshot) -> {
             if (existingSnapshot == null) {
                 // Создаем новый снапшот
-                Map<String, SensorStateAvro> states = new HashMap<>();
+                Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
                 return SensorsSnapshotAvro.newBuilder()
                         .setHubId(hubId)
@@ -89,8 +88,9 @@ public class AggregationStarter {
                         .setSensorsState(states)
                         .build();
             } else {
-                // Создаем копию существующего снапшота с обновленным состоянием
-                Map<String, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
+                // Создаем копию существующей мапы
+                Map<CharSequence, SensorStateAvro> updatedStates =
+                        new HashMap<>(existingSnapshot.getSensorsState());
                 updatedStates.put(sensorId, newState);
 
                 SensorsSnapshotAvro updatedSnapshot = SensorsSnapshotAvro.newBuilder()
@@ -116,10 +116,12 @@ public class AggregationStarter {
     }
 
     private void sendSnapshot(SensorsSnapshotAvro snapshot) {
-        log.debug("Отправка снапшота в топик {}, партиция {}", snapshotTopic, snapshot.getHubId());
+        String snapshotTopic = kafkaConfig.getTopics().getSnapshots();
+        log.debug("Отправка снапшота в топик {}", snapshotTopic);
         try {
-            // Важно: не модифицируем snapshot, только читаем
-            kafkaTemplate.send(snapshotTopic, snapshot);
+            ProducerRecord<String, SpecificRecordBase> record =
+                    new ProducerRecord<>(snapshotTopic, snapshot);
+            producer.send(record);
         } catch (Exception e) {
             log.error("Ошибка отправки снапшота: {}", e.getMessage(), e);
         }
