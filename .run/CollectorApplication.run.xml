@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+    <configuration default="false" name="CollectorApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+        <module name="collector" />
+        <option name="SPRING_BOOT_MAIN_CLASS" value="ru.yandex.practicum.telemetry.collector.CollectorApplication" />
+        <option name="VM_PARAMETERS" value="-Dio.netty.noUnsafe=true -Dio.netty.transport.noNative=true" />
+        <option name="ALTERNATIVE_JRE_PATH" value="21" />
+        <method v="2">
+            <option name="Make" enabled="true" />
+        </method>
+    </configuration>
+</component>

@@ -17,12 +17,17 @@ spring:
       connection-test-query: SELECT 1
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
 
 kafka:
   bootstrap-servers: localhost:9092
@@ -55,8 +60,6 @@ logging:
     org.apache.kafka: INFO
     org.hibernate: WARN
     org.springframework.transaction: DEBUG
+    org.flywaydb: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
-
-test:
-  mode: true

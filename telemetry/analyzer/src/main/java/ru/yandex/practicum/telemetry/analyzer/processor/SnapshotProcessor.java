@@ -69,14 +69,12 @@ public class SnapshotProcessor {
                             snapshot.getHubId(), snapshot.getSensorsState().size(), record.offset());
 
                     try {
-                        // Получаем все сценарии для этого хаба
                         List<Scenario> scenarios = scenarioService.getScenariosByHubId(snapshot.getHubId());
 
                         if (scenarios.isEmpty()) {
                             log.debug("No scenarios found for hubId={}", snapshot.getHubId());
                         }
 
-                        // Проверяем каждый сценарий
                         for (Scenario scenario : scenarios) {
                             log.info("🔍 Checking scenario: '{}' for hubId={}", scenario.getName(), snapshot.getHubId());
 
@@ -91,11 +89,9 @@ public class SnapshotProcessor {
                     } catch (Exception e) {
                         log.error("Error processing snapshot for hub: {}, offset: {}",
                                 snapshot.getHubId(), record.offset(), e);
-                        // Не падаем, продолжаем обработку следующего снапшота
                     }
                 }
 
-                // Фиксируем смещения только после успешной обработки всей пачки
                 if (!records.isEmpty()) {
                     try {
                         consumer.commitSync();

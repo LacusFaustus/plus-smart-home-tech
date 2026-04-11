@@ -20,7 +20,7 @@ hub-router:
     #   - COLLECTION - проверяет только работу коллектора
     #   - AGGREGATION - проверяет работу коллектора и агрегатора
     #   - ANALYZE - проверяет работу коллектора, агрегатора и анализатора
-    mode: ANALYZE
+    mode: COLLECTION
     immediate-logging.enabled: true
     output:
       info-enabled: true
