@@ -10,11 +10,13 @@ import java.time.Instant;
 public class SensorEventMapper {
 
     public SensorEventAvro mapToAvro(SensorEventProto event) {
-        Instant instant = Instant.ofEpochSecond(event.getTimestamp().getSeconds(), event.getTimestamp().getNanos());
+        Instant instant = Instant.ofEpochSecond(
+                event.getTimestamp().getSeconds(),
+                event.getTimestamp().getNanos()
+        );
 
         Object payload = null;
 
-        // Определяем тип по наличию данных в полях
         if (event.hasClimateSensor()) {
             payload = mapClimateSensor(event.getClimateSensor());
         } else if (event.hasLightSensor()) {
@@ -25,14 +27,12 @@ public class SensorEventMapper {
             payload = mapSwitchSensor(event.getSwitchSensor());
         } else if (event.hasTemperatureSensor()) {
             payload = mapTemperatureSensor(event.getTemperatureSensor());
-        } else {
-            throw new IllegalArgumentException("No sensor data in event");
         }
 
         return SensorEventAvro.newBuilder()
                 .setId(event.getId())
                 .setHubId(event.getHubId())
-                .setTimestamp(instant)
+                .setTimestamp(instant)  // ← Оставляем Instant
                 .setPayload(payload)
                 .build();
     }

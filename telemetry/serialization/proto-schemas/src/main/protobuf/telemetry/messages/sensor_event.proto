@@ -9,10 +9,10 @@ option java_multiple_files = true;
 
 message SensorEventProto {
   string id = 1;
-  string hub_id = 2;
+  string hub_id = 2;  // ВАЖНО: hub_id, не hubId
   google.protobuf.Timestamp timestamp = 3;
 
-  // Вместо oneof используем плоскую структуру
+  // Плоская структура без oneof!
   ClimateSensorProto climate_sensor = 4;
   LightSensorProto light_sensor = 5;
   MotionSensorProto motion_sensor = 6;
@@ -33,12 +33,12 @@ message LightSensorProto {
 
 message MotionSensorProto {
   int32 link_quality = 1;
-  int32 motion = 2;
+  int32 motion = 2;      // int32, не bool!
   int32 voltage = 3;
 }
 
 message SwitchSensorProto {
-  int32 state = 1;
+  int32 state = 1;       // int32, не bool!
 }
 
 message TemperatureSensorProto {

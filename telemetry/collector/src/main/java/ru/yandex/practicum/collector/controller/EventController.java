@@ -1,6 +1,7 @@
 package ru.yandex.practicum.collector.controller;
 
 import com.google.protobuf.Empty;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,10 +11,12 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import ru.yandex.practicum.collector.config.KafkaConfig;
 import ru.yandex.practicum.collector.mapper.HubEventMapper;
+import ru.yandex.practicum.collector.mapper.SensorEventMapper;
 import ru.yandex.practicum.grpc.telemetry.collector.CollectorControllerGrpc;
 import ru.yandex.practicum.grpc.telemetry.event.HubEventProto;
 import ru.yandex.practicum.grpc.telemetry.event.SensorEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
+import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 
 @GrpcService
 @Slf4j
@@ -25,10 +28,36 @@ public class EventController extends CollectorControllerGrpc.CollectorController
 
     @Override
     public void collectSensorEvent(SensorEventProto request, StreamObserver<Empty> responseObserver) {
-        // Этот метод не будет вызываться, так как RawBytesInterceptor перехватывает запрос раньше
-        log.warn("collectSensorEvent called (should not happen)");
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        try {
+            log.info("Получено событие датчика: id={}, hubId={}",
+                    request.getId(), request.getHubId());
+
+            SensorEventAvro avroEvent = SensorEventMapper.mapToAvro(request);
+
+            ProducerRecord<String, SpecificRecordBase> record = new ProducerRecord<>(
+                    kafkaConfig.getTopics().getSensors(),
+                    avroEvent.getHubId().toString(),
+                    avroEvent
+            );
+
+            kafkaProducer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    log.error("Ошибка отправки в Kafka", exception);
+                } else {
+                    log.debug("Событие датчика отправлено в топик {}", metadata.topic());
+                }
+            });
+
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+
+        } catch (Exception e) {
+            log.error("Ошибка обработки события датчика", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Ошибка сервера: " + e.getMessage())
+                    .withCause(e)
+                    .asRuntimeException());
+        }
     }
 
     @Override
@@ -58,7 +87,7 @@ public class EventController extends CollectorControllerGrpc.CollectorController
 
         } catch (Exception e) {
             log.error("Ошибка обработки события хаба", e);
-            responseObserver.onError(io.grpc.Status.INTERNAL
+            responseObserver.onError(Status.INTERNAL
                     .withDescription("Ошибка сервера: " + e.getMessage())
                     .withCause(e)
                     .asRuntimeException());

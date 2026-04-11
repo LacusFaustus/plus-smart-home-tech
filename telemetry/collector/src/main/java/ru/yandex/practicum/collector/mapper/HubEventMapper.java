@@ -10,26 +10,22 @@ import java.time.Instant;
 public class HubEventMapper {
 
     public HubEventAvro mapToAvro(HubEventProto event) {
-        Instant instant = Instant.now();
-        if (event.hasTimestamp()) {
-            instant = Instant.ofEpochSecond(
-                    event.getTimestamp().getSeconds(),
-                    event.getTimestamp().getNanos()
-            );
-        }
+        Instant instant = Instant.ofEpochSecond(
+                event.getTimestamp().getSeconds(),
+                event.getTimestamp().getNanos()
+        );
 
         Object payload = switch (event.getPayloadCase()) {
             case DEVICE_ADDED -> mapDeviceAdded(event.getDeviceAdded());
             case DEVICE_REMOVED -> mapDeviceRemoved(event.getDeviceRemoved());
             case SCENARIO_ADDED -> mapScenarioAdded(event.getScenarioAdded());
             case SCENARIO_REMOVED -> mapScenarioRemoved(event.getScenarioRemoved());
-            case PAYLOAD_NOT_SET -> throw new IllegalArgumentException("Payload not set");
             default -> throw new IllegalArgumentException("Unknown hub event type: " + event.getPayloadCase());
         };
 
         return HubEventAvro.newBuilder()
                 .setHubId(event.getHubId())
-                .setTimestamp(instant)
+                .setTimestamp(instant)  // ← Оставляем Instant
                 .setPayload(payload)
                 .build();
     }
@@ -66,8 +62,13 @@ public class HubEventMapper {
     }
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
-        // value теперь имеет тег 5
-        int value = proto.getValue();
+        Object value = proto.getValue();
+
+        // Для SWITCH и MOTION конвертируем int в boolean
+        if (proto.getType() == ConditionTypeProto.SWITCH ||
+                proto.getType() == ConditionTypeProto.MOTION) {
+            value = (proto.getValue() != 0);
+        }
 
         return ScenarioConditionAvro.newBuilder()
                 .setSensorId(proto.getSensorId())
