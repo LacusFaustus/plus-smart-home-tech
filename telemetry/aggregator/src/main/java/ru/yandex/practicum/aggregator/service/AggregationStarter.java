@@ -77,47 +77,52 @@ public class AggregationStarter {
                 .build();
 
         // 2. Атомарно обновляем мапу снапшотов
-        SensorsSnapshotAvro snapshotToSend = snapshots.compute(hubId, (key, existingSnapshot) -> {
+        SensorsSnapshotAvro snapshotToSend;
+
+        synchronized (snapshots) {
+            SensorsSnapshotAvro existingSnapshot = snapshots.get(hubId);
+
             if (existingSnapshot == null) {
                 // Создаем новый снапшот
                 Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
-                return SensorsSnapshotAvro.newBuilder()
+                snapshotToSend = SensorsSnapshotAvro.newBuilder()
                         .setHubId(hubId)
                         .setTimestamp(event.getTimestamp())
                         .setSensorsState(states)
                         .build();
+                log.info("Создан новый снапшот для хаба {}", hubId);
             } else {
                 // Создаем копию существующей мапы
                 Map<CharSequence, SensorStateAvro> updatedStates =
                         new HashMap<>(existingSnapshot.getSensorsState());
                 updatedStates.put(sensorId, newState);
 
-                SensorsSnapshotAvro updatedSnapshot = SensorsSnapshotAvro.newBuilder()
-                        .setHubId(existingSnapshot.getHubId())
+                snapshotToSend = SensorsSnapshotAvro.newBuilder()
+                        .setHubId(hubId)  // Важно: явно устанавливаем hubId как String
                         .setTimestamp(event.getTimestamp())
                         .setSensorsState(updatedStates)
                         .build();
 
-                // Логируем для отладки
                 SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
                 if (oldState == null || !oldState.equals(newState)) {
-                    log.info("Снапшот обновлен и будет отправлен для хаба {}", hubId);
+                    log.info("Снапшот обновлен для хаба {}", hubId);
                 } else {
-                    log.debug("Данные датчика {} не изменились, но снапшот будет отправлен", sensorId);
+                    log.debug("Данные датчика {} не изменились, но снапшот отправлен", sensorId);
                 }
-
-                return updatedSnapshot;
             }
-        });
 
-        // 3. Отправляем НОВЫЙ иммутабельный объект
+            // Сохраняем обновленный снапшот
+            snapshots.put(hubId, snapshotToSend);
+        }
+
+        // 3. Отправляем снапшот
         sendSnapshot(snapshotToSend);
     }
 
     private void sendSnapshot(SensorsSnapshotAvro snapshot) {
         String snapshotTopic = kafkaConfig.getTopics().getSnapshots();
-        log.debug("Отправка снапшота в топик {}", snapshotTopic);
+        log.debug("Отправка снапшота для хаба {} в топик {}", snapshot.getHubId(), snapshotTopic);
         try {
             ProducerRecord<String, SpecificRecordBase> record =
                     new ProducerRecord<>(snapshotTopic, snapshot);
