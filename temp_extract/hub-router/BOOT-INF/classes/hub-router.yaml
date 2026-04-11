@@ -1,0 +1,43 @@
+grpc:
+  server:
+    port: 59090
+    reflection-service-enabled: true
+  client:
+    collector:
+      address: 'static://localhost:${hub-router.execution.collector.port}'
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+
+hub-router:
+  execution:
+    collector:
+      # Способ отправки событий в коллектор
+      mode: grpc # поддерживает http или grpc
+      # Сетевой порт для отправки запросов коллектору
+      port: 59091 # 8080 - для http, 59091 - для grpc
+    # Режим выполнения тестов:
+    #   - COLLECTION - проверяет только работу коллектора
+    #   - AGGREGATION - проверяет работу коллектора и агрегатора
+    #   - ANALYZE - проверяет работу коллектора, агрегатора и анализатора
+    mode: COLLECTION
+    immediate-logging.enabled: true
+    output:
+      info-enabled: true
+      trace-enabled: true
+      print: true
+      file: false
+      file-path: "./execution-report.txt"
+  kafka:
+    properties:
+      "bootstrap.servers": localhost:9092
+      "enable.auto.commit": false
+      "auto.offset.reset": earliest
+      "max.poll.records": 1
+      "key.deserializer": "org.apache.kafka.common.serialization.StringDeserializer"
+      "max.partition.fetch.bytes": 250
+    poll-timeout: 5s
+    topics:
+      sensor-events: "telemetry.sensors.v1"
+      hub-events: "telemetry.hubs.v1"
+      events-snapshots: "telemetry.snapshots.v1"
