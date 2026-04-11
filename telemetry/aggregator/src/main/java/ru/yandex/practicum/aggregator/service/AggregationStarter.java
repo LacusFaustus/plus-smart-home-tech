@@ -85,16 +85,18 @@ public class AggregationStarter {
                 .setData(event.getPayload())
                 .build();
 
+// 1. Всегда обновляем состояние в мапе
         snapshot.getSensorsState().put(sensorId, newState);
         snapshot.setTimestamp(event.getTimestamp());
 
-        // ВСЕГДА отправляем снапшот (даже если данные не изменились)
+// 2. Всегда отправляем снапшот (даже если данные не изменились)
         sendSnapshot(snapshot);
 
+// 3. Логируем результат для отладки
         if (currentState == null || !currentState.equals(newState)) {
             log.info("Снапшот обновлен и отправлен для хаба {}", hubId);
         } else {
-            log.debug("Данные датчика {} не изменились, но снапшот отправлен", sensorId);
+            log.debug("Данные датчика {} не изменились, но снапшот отправлен (требование Hub Router)", sensorId);
         }
     }
 
