@@ -68,7 +68,7 @@ public class AggregationStarter {
     }
 
     private void updateSnapshot(SensorEventAvro event) {
-        String hubId = event.getHubId().toString();      // ← toString()
+        String hubId = event.getHubId().toString();
         SensorsSnapshotAvro snapshot = snapshots.computeIfAbsent(hubId,
                 k -> SensorsSnapshotAvro.newBuilder()
                         .setHubId(hubId)
@@ -76,26 +76,25 @@ public class AggregationStarter {
                         .setSensorsState(new HashMap<>())
                         .build());
 
-        String sensorId = event.getId().toString();      // ← toString()
+        String sensorId = event.getId().toString();
         SensorStateAvro currentState = snapshot.getSensorsState().get(sensorId);
 
-        // Проверяем, нужно ли обновлять состояние
-        if (currentState == null ||
-                event.getTimestamp().isAfter(currentState.getTimestamp())) {
+        // Всегда обновляем состояние
+        SensorStateAvro newState = SensorStateAvro.newBuilder()
+                .setTimestamp(event.getTimestamp())
+                .setData(event.getPayload())
+                .build();
 
-            SensorStateAvro newState = SensorStateAvro.newBuilder()
-                    .setTimestamp(event.getTimestamp())
-                    .setData(event.getPayload())
-                    .build();
+        snapshot.getSensorsState().put(sensorId, newState);
+        snapshot.setTimestamp(event.getTimestamp());
 
-            snapshot.getSensorsState().put(sensorId, newState);
-            snapshot.setTimestamp(event.getTimestamp());
+        // ВСЕГДА отправляем снапшот (даже если данные не изменились)
+        sendSnapshot(snapshot);
 
-            // Отправляем обновленный снапшот в Kafka
-            sendSnapshot(snapshot);
+        if (currentState == null || !currentState.equals(newState)) {
             log.info("Снапшот обновлен и отправлен для хаба {}", hubId);
         } else {
-            log.debug("Данные датчика {} не изменились, снапшот не обновляется", sensorId);
+            log.debug("Данные датчика {} не изменились, но снапшот отправлен", sensorId);
         }
     }
 
