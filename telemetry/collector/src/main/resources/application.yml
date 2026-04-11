@@ -1,13 +1,15 @@
-spring:
-  application:
-    name: collector
-  kafka:
-    bootstrap-servers: localhost:9092
+grpc:
+  server:
+    port: 59091
+    max-inbound-message-size: 10485760  # 10MB
+    max-inbound-metadata-size: 1048576  # 1MB
 
-server:
-  port: 8080
+spring:
+  main:
+    allow-bean-definition-overriding: true
 
 kafka:
+  bootstrap-servers: localhost:9092
   topics:
     sensors: telemetry.sensors.v1
     hubs: telemetry.hubs.v1
@@ -15,4 +17,3 @@ kafka:
 logging:
   level:
     ru.yandex.practicum: DEBUG
-    org.springframework.kafka: INFO
