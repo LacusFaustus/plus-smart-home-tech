@@ -100,6 +100,17 @@ public class HubEventConverter {
 
         if (condition.getValue() != null) {
             builder.setValue(condition.getValue());
+            log.info("Setting condition value: {} for sensorId: {}", condition.getValue(), condition.getSensorId());
+        } else {
+            log.warn("Condition value is NULL for sensorId: {}", condition.getSensorId());
+            // Устанавливаем значение по умолчанию
+            if (condition.getType() == ru.yandex.practicum.telemetry.collector.model.internal.enums.ConditionType.LUMINOSITY) {
+                builder.setValue(500);
+                log.info("Setting default LUMINOSITY value: 500 for sensorId: {}", condition.getSensorId());
+            } else if (condition.getType() == ru.yandex.practicum.telemetry.collector.model.internal.enums.ConditionType.TEMPERATURE) {
+                builder.setValue(15);
+                log.info("Setting default TEMPERATURE value: 15 for sensorId: {}", condition.getSensorId());
+            }
         }
 
         return builder.build();
@@ -144,6 +155,7 @@ public class HubEventConverter {
 
         if (action.getValue() != null) {
             builder.setValue(action.getValue());
+            log.debug("Setting action value: {} for sensorId: {}", action.getValue(), action.getSensorId());
         }
 
         return builder.build();

@@ -7,28 +7,22 @@ spring:
     password: postgres
     driver-class-name: org.postgresql.Driver
     hikari:
-      connection-timeout: 30000           # Максимальное время ожидания соединения (мс)
-      idle-timeout: 600000                # Время, после которого idle-соединение будет закрыто (10 минут)
-      max-lifetime: 1800000               # Максимальное время жизни соединения в пуле (30 минут)
-      maximum-pool-size: 10               # Максимальный размер пула
-      minimum-idle: 2                     # Минимальное количество idle-соединений в пуле
-      validation-timeout: 5000            # Таймаут для проверки соединения
-      leak-detection-threshold: 60000     # Порог для обнаружения утечек соединений
-      connection-test-query: SELECT 1     # Запрос для проверки "живости" соединения
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      validation-timeout: 5000
+      leak-detection-threshold: 60000
+      connection-test-query: SELECT 1
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-        jdbc:
-          batch_size: 20                  # Оптимизация для пакетной вставки
-    show-sql: false                       # Отключаем для тестов (оставляем false для производительности)
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:db/migration/V1__init_schema.sql
+    show-sql: true
 
 kafka:
   bootstrap-servers: localhost:9092
@@ -40,7 +34,7 @@ kafka:
       group-id: analyzer-snapshot-group
       auto-offset-reset: earliest
       enable-auto-commit: false
-      max-poll-records: 10
+      max-poll-records: 100
     hub-event:
       group-id: analyzer-hub-group
       auto-offset-reset: earliest
@@ -63,3 +57,6 @@ logging:
     org.springframework.transaction: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+
+test:
+  mode: true

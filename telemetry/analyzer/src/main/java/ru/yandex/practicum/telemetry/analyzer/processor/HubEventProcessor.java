@@ -15,29 +15,22 @@ import ru.yandex.practicum.telemetry.analyzer.service.ScenarioService;
 import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class HubEventProcessor implements Runnable {
 
     private final KafkaConfig kafkaConfig;
     private final ScenarioService scenarioService;
-    private final CountDownLatch readyLatch = new CountDownLatch(1);
-
-    public void awaitReady() throws InterruptedException {
-        readyLatch.await(30, TimeUnit.SECONDS);
-    }
 
     private KafkaConsumer<String, HubEventAvro> consumer;
     private volatile boolean running = true;
 
     @Override
     public void run() {
-        log.info("HubEventProcessor run() method started");
-        initializeConsumer();
+        log.info("=== HubEventProcessor started ===");
+        initConsumer();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown hook received for HubEventProcessor");
@@ -48,53 +41,60 @@ public class HubEventProcessor implements Runnable {
         }));
 
         try {
-            consumer.subscribe(List.of(kafkaConfig.getTopics().getHubs()));
-            log.info("Subscribed to topic: {}", kafkaConfig.getTopics().getHubs());
-
-            // Принудительно получаем назначение партиций
-            consumer.poll(Duration.ofMillis(100));
-            log.info("Assigned partitions: {}", consumer.assignment());
+            String topic = kafkaConfig.getTopics().getHubs();
+            consumer.subscribe(List.of(topic));
+            log.info("Subscribed to topic: {}", topic);
 
             while (running) {
-                ConsumerRecords<String, HubEventAvro> records = consumer.poll(Duration.ofMillis(1000));
+                ConsumerRecords<String, HubEventAvro> records = consumer.poll(Duration.ofMillis(2000));
 
-                if (!records.isEmpty()) {
-                    log.info("📦 RECEIVED {} hub event records from Kafka", records.count());
+                if (records.isEmpty()) {
+                    continue;
                 }
+
+                log.info("📦 Received {} hub event records", records.count());
 
                 for (ConsumerRecord<String, HubEventAvro> record : records) {
                     HubEventAvro event = record.value();
                     if (event == null) {
-                        log.warn("Received null event at offset: {}", record.offset());
+                        log.warn("Received null hub event at offset: {}", record.offset());
                         continue;
                     }
 
-                    log.debug("Processing event: hubId={}, offset={}", event.getHubId(), record.offset());
+                    log.info("📨 Processing: offset={}, partition={}, hubId={}",
+                            record.offset(), record.partition(), event.getHubId());
 
                     try {
                         scenarioService.processHubEvent(event);
+                        log.info("✅ Successfully processed event for hubId={}", event.getHubId());
                     } catch (Exception e) {
-                        log.error("Error processing hub event", e);
+                        log.error("❌ Error processing event for hubId={}, offset={}",
+                                event.getHubId(), record.offset(), e);
+                        // Не падаем, продолжаем обработку следующего события
                     }
                 }
 
+                // Фиксируем offsets после обработки
                 if (!records.isEmpty()) {
-                    consumer.commitSync();
-                    log.info("Committed offsets for {} records", records.count());
+                    try {
+                        consumer.commitSync();
+                        log.info("✅ Committed offsets for {} records", records.count());
+                    } catch (CommitFailedException e) {
+                        log.error("Failed to commit offsets", e);
+                    }
                 }
             }
+
         } catch (WakeupException e) {
-            log.info("Wakeup exception received");
+            log.info("Wakeup exception received for HubEventProcessor");
         } catch (Exception e) {
-            log.error("Unexpected error", e);
+            log.error("Unexpected error in HubEventProcessor", e);
         } finally {
             closeConsumer();
         }
     }
 
-    private void initializeConsumer() {
-        log.info("Initializing hub event consumer...");
-
+    private void initConsumer() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfig.getBootstrapServers());
         props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConfig.getConsumer().getHubEvent().getGroupId());
@@ -103,18 +103,10 @@ public class HubEventProcessor implements Runnable {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaConfig.getConsumer().getHubEvent().getAutoOffsetReset());
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaConfig.getConsumer().getHubEvent().isEnableAutoCommit());
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaConfig.getConsumer().getHubEvent().getMaxPollRecords());
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
-        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
 
         consumer = new KafkaConsumer<>(props);
-
-        // Проверяем, что можем получить список топиков
-        try {
-            consumer.listTopics().keySet().forEach(topic -> log.debug("Available topic: {}", topic));
-            log.info("✅ Successfully connected to Kafka");
-        } catch (Exception e) {
-            log.error("❌ Failed to connect to Kafka", e);
-        }
+        log.info("HubEventConsumer initialized with group.id: {}",
+                kafkaConfig.getConsumer().getHubEvent().getGroupId());
     }
 
     private void closeConsumer() {
@@ -122,10 +114,10 @@ public class HubEventProcessor implements Runnable {
             if (consumer != null) {
                 consumer.commitSync();
                 consumer.close();
-                log.info("✅ HubEventProcessor consumer closed");
+                log.info("HubEventConsumer closed");
             }
         } catch (Exception e) {
-            log.error("❌ Error closing HubEventProcessor consumer", e);
+            log.error("Error closing consumer", e);
         }
     }
 

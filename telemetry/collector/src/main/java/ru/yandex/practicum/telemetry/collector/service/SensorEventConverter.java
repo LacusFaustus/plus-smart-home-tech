@@ -16,6 +16,8 @@ public class SensorEventConverter {
         builder.setHubId(event.getHubId());
         builder.setTimestamp(event.getTimestamp().toEpochMilli());
 
+        log.info("Converting sensor event: type={}, id={}", event.getType(), event.getId());
+
         if (event.getType() == SensorEventType.CLIMATE_SENSOR_EVENT) {
             ClimateSensorEventInternal climateEvent = (ClimateSensorEventInternal) event;
             ClimateSensorAvro climateAvro = ClimateSensorAvro.newBuilder()
@@ -24,7 +26,8 @@ public class SensorEventConverter {
                     .setCo2Level(climateEvent.getCo2Level())
                     .build();
             builder.setPayload(climateAvro);
-            log.debug("Converted ClimateSensorEvent to Avro: id={}", event.getId());
+            log.info("Converted ClimateSensorEvent: temp={}, humidity={}, co2={}",
+                    climateEvent.getTemperatureC(), climateEvent.getHumidity(), climateEvent.getCo2Level());
 
         } else if (event.getType() == SensorEventType.LIGHT_SENSOR_EVENT) {
             LightSensorEventInternal lightEvent = (LightSensorEventInternal) event;
@@ -33,7 +36,7 @@ public class SensorEventConverter {
                     .setLuminosity(lightEvent.getLuminosity())
                     .build();
             builder.setPayload(lightAvro);
-            log.debug("Converted LightSensorEvent to Avro: id={}", event.getId());
+            log.info("Converted LightSensorEvent: luminosity={}", lightEvent.getLuminosity());
 
         } else if (event.getType() == SensorEventType.MOTION_SENSOR_EVENT) {
             MotionSensorEventInternal motionEvent = (MotionSensorEventInternal) event;
@@ -43,7 +46,7 @@ public class SensorEventConverter {
                     .setVoltage(motionEvent.getVoltage())
                     .build();
             builder.setPayload(motionAvro);
-            log.debug("Converted MotionSensorEvent to Avro: id={}", event.getId());
+            log.info("Converted MotionSensorEvent: motion={}", motionEvent.isMotion());
 
         } else if (event.getType() == SensorEventType.SWITCH_SENSOR_EVENT) {
             SwitchSensorEventInternal switchEvent = (SwitchSensorEventInternal) event;
@@ -51,7 +54,7 @@ public class SensorEventConverter {
                     .setState(switchEvent.isState())
                     .build();
             builder.setPayload(switchAvro);
-            log.debug("Converted SwitchSensorEvent to Avro: id={}", event.getId());
+            log.info("Converted SwitchSensorEvent: state={}", switchEvent.isState());
 
         } else if (event.getType() == SensorEventType.TEMPERATURE_SENSOR_EVENT) {
             TemperatureSensorEventInternal tempEvent = (TemperatureSensorEventInternal) event;
@@ -60,7 +63,7 @@ public class SensorEventConverter {
                     .setTemperatureF(tempEvent.getTemperatureF())
                     .build();
             builder.setPayload(tempAvro);
-            log.debug("Converted TemperatureSensorEvent to Avro: id={}", event.getId());
+            log.info("Converted TemperatureSensorEvent: tempC={}", tempEvent.getTemperatureC());
 
         } else {
             log.error("Unknown sensor event type: {}", event.getType());

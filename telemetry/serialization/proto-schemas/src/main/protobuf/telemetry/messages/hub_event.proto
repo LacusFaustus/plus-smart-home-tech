@@ -3,49 +3,61 @@ syntax = "proto3";
 package telemetry.message.event;
 
 import "google/protobuf/timestamp.proto";
-import "telemetry/messages/device_action.proto";
 
 option java_multiple_files = true;
 option java_package = "ru.yandex.practicum.grpc.telemetry.event";
 
-message HubEventProto {
-  string hubId = 1;
+message HubEvent {
+  bytes hub_id = 1;
   google.protobuf.Timestamp timestamp = 2;
   oneof payload {
-    DeviceAddedEventProto device_added = 3;
-    DeviceRemovedEventProto device_removed = 4;
-    ScenarioAddedEventProto scenario_added = 5;
-    ScenarioRemovedEventProto scenario_removed = 6;
+    DeviceAdded device_added = 3;
+    DeviceRemoved device_removed = 4;
+    ScenarioAdded scenario_added = 5;
+    ScenarioRemoved scenario_removed = 6;
   }
 }
 
-message DeviceAddedEventProto {
-  string id = 1;
-  DeviceTypeProto type = 2;
+message DeviceAdded {
+  bytes id = 1;
+  DeviceType type = 2;
 }
 
-message DeviceRemovedEventProto {
-  string id = 1;
+message DeviceRemoved {
+  bytes id = 1;
 }
 
-message ScenarioAddedEventProto {
+message ScenarioAdded {
   string name = 1;
-  repeated ScenarioConditionProto conditions = 2;
-  repeated DeviceActionProto actions = 3;
+  repeated ScenarioCondition conditions = 2;
+  repeated DeviceAction actions = 3;
 }
 
-message ScenarioRemovedEventProto {
+message ScenarioRemoved {
   string name = 1;
 }
 
-message ScenarioConditionProto {
-  string sensorId = 1;
-  ConditionTypeProto type = 2;
-  ConditionOperationProto operation = 3;
+message ScenarioCondition {
+  bytes sensor_id = 1;
+  ConditionType type = 2;
+  ConditionOperation operation = 3;
   optional int32 value = 4;
 }
 
-enum DeviceTypeProto {
+message DeviceAction {
+  bytes sensor_id = 1;
+  ActionType type = 2;
+  optional int32 value = 3;
+}
+
+message DeviceActionRequest {
+  string hub_id = 1;
+  string scenario_name = 2;
+  DeviceAction action = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+enum DeviceType {
   MOTION_SENSOR = 0;
   TEMPERATURE_SENSOR = 1;
   LIGHT_SENSOR = 2;
@@ -53,7 +65,7 @@ enum DeviceTypeProto {
   SWITCH_SENSOR = 4;
 }
 
-enum ConditionTypeProto {
+enum ConditionType {
   MOTION = 0;
   LUMINOSITY = 1;
   SWITCH = 2;
@@ -62,8 +74,15 @@ enum ConditionTypeProto {
   HUMIDITY = 5;
 }
 
-enum ConditionOperationProto {
+enum ConditionOperation {
   EQUALS = 0;
   GREATER_THAN = 1;
   LOWER_THAN = 2;
+}
+
+enum ActionType {
+  ACTIVATE = 0;
+  DEACTIVATE = 1;
+  INVERSE = 2;
+  SET_VALUE = 3;
 }
