@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import ru.yandex.practicum.grpc.telemetry.event.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 
 @Slf4j
@@ -65,6 +66,7 @@ public class HubEventMapper {
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
         ConditionTypeProto type = proto.getType();
+
         int intValue = extractValue(proto);
 
         Object value = intValue;
@@ -84,52 +86,58 @@ public class HubEventMapper {
 
     /**
      * Извлекает значение value из ScenarioConditionProto.
-     * Пробует все возможные способы получения значения.
+     * Поддерживает оба тега Protobuf: 4 (для MOTION) и 5 (для LUMINOSITY, TEMPERATURE, SWITCH).
      */
     private int extractValue(ScenarioConditionProto proto) {
-        // Способ 1: Стандартный getValue() (для тега 5)
-        try {
-            int value = proto.getValue();
-            if (value != 0) {
-                return value;
-            }
-        } catch (Exception e) {
-            // Игнорируем, пробуем дальше
+        // Способ 1: Стандартный getValue() для тега 4 (MOTION)
+        int value = proto.getValue();
+        if (value != 0) {
+            log.debug("Value extracted via getValue(): {}", value);
+            return value;
         }
 
-        // Способ 2: Прямой доступ к полю value_ через рефлексию
+        // Способ 2: Прямой доступ к полю value_ через рефлексию для тега 5
         try {
-            java.lang.reflect.Field valueField = proto.getClass().getDeclaredField("value_");
+            Field valueField = ScenarioConditionProto.class.getDeclaredField("value_");
             valueField.setAccessible(true);
             Object fieldValue = valueField.get(proto);
             if (fieldValue instanceof Integer) {
-                return (int) fieldValue;
+                int extractedValue = (Integer) fieldValue;
+                if (extractedValue != 0) {
+                    log.debug("Value extracted via reflection from 'value_': {}", extractedValue);
+                    return extractedValue;
+                }
             }
-        } catch (Exception e) {
-            // Игнорируем, пробуем дальше
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            log.debug("Could not extract value from 'value_' field: {}", e.getMessage());
         }
 
-        // Способ 3: Поиск всех полей, которые могут содержать значение
+        // Способ 3: Поиск любого поля типа int, которое содержит значение
         try {
-            java.lang.reflect.Field[] fields = proto.getClass().getDeclaredFields();
-            for (java.lang.reflect.Field field : fields) {
-                if (field.getName().contains("value") || field.getName().contains("Value")) {
+            for (Field field : ScenarioConditionProto.class.getDeclaredFields()) {
+                if (field.getType() == int.class || field.getType() == Integer.class) {
                     field.setAccessible(true);
                     Object fieldValue = field.get(proto);
                     if (fieldValue instanceof Integer) {
-                        int val = (int) fieldValue;
-                        if (val != 0) {
-                            return val;
+                        int extractedValue = (Integer) fieldValue;
+                        // Исключаем служебные поля Protobuf
+                        if (extractedValue != 0
+                                && !field.getName().equals("memoizedHashCode")
+                                && !field.getName().contains("bitField")
+                                && !field.getName().equals("memoizedSerializedSize")) {
+                            log.warn("Value extracted via fallback reflection from field '{}': {}",
+                                    field.getName(), extractedValue);
+                            return extractedValue;
                         }
                     }
                 }
             }
-        } catch (Exception e) {
-            log.warn("Не удалось извлечь value через рефлексию: {}", e.getMessage());
+        } catch (IllegalAccessException e) {
+            log.error("Fallback reflection failed", e);
         }
 
         // Если ничего не нашли, возвращаем 0
-        log.warn("Не удалось извлечь value для условия типа {}", proto.getType());
+        log.warn("Could not extract value for condition of type {}. Returning 0.", proto.getType());
         return 0;
     }
 
@@ -146,7 +154,7 @@ public class HubEventMapper {
         try {
             return DeviceTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown device type: " + type);
+            throw new IllegalArgumentException("Unknown device type: " + type, e);
         }
     }
 
@@ -154,7 +162,7 @@ public class HubEventMapper {
         try {
             return ConditionTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown condition type: " + type);
+            throw new IllegalArgumentException("Unknown condition type: " + type, e);
         }
     }
 
@@ -162,7 +170,7 @@ public class HubEventMapper {
         try {
             return ConditionOperationAvro.valueOf(op.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown condition operation: " + op);
+            throw new IllegalArgumentException("Unknown condition operation: " + op, e);
         }
     }
 
@@ -170,7 +178,7 @@ public class HubEventMapper {
         try {
             return ActionTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown action type: " + type);
+            throw new IllegalArgumentException("Unknown action type: " + type, e);
         }
     }
 }
