@@ -41,8 +41,7 @@ message ScenarioConditionProto {
   string sensor_id = 1;
   ConditionTypeProto type = 2;
   ConditionOperationProto operation = 3;
-  // ВАЖНО: тег 5, как отправляет hub-router
-  int32 value = 5;
+  int32 value = 4;
 }
 
 message DeviceActionProto {
