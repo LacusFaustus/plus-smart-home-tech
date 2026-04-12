@@ -1,0 +1,8 @@
+grpc:
+  server:
+    port: 59090
+
+logging:
+  level:
+    ru.yandex.practicum: DEBUG
+    io.grpc: DEBUG
