@@ -25,8 +25,6 @@ public class HubEventProcessor implements Runnable {
     private final KafkaConfig kafkaConfig;
     private final SensorRepository sensorRepository;
     private final ScenarioRepository scenarioRepository;
-    private final ConditionRepository conditionRepository;
-    private final ActionRepository actionRepository;
 
     private volatile boolean running = true;
 
@@ -42,8 +40,18 @@ public class HubEventProcessor implements Runnable {
                 ConsumerRecords<String, HubEventAvro> records =
                         hubEventConsumer.poll(Duration.ofSeconds(1));
 
+                if (records.isEmpty()) {
+                    continue;
+                }
+
                 for (ConsumerRecord<String, HubEventAvro> record : records) {
-                    processHubEvent(record.value());
+                    try {
+                        processHubEvent(record.value());
+                    } catch (Exception e) {
+                        log.error("Ошибка обработки события хаба: {}", e.getMessage(), e);
+                        // Не коммитим, если не обработали
+                        return;
+                    }
                 }
 
                 hubEventConsumer.commitSync();
@@ -88,14 +96,16 @@ public class HubEventProcessor implements Runnable {
 
     private void handleDeviceRemoved(String hubId, DeviceRemovedEventAvro event) {
         String sensorId = event.getId().toString();
-        sensorRepository.deleteById(sensorId);
+        sensorRepository.deleteByHubIdAndId(hubId, sensorId);
         log.info("Удалён датчик: id={}, hubId={}", sensorId, hubId);
     }
 
+    @Transactional
     private void handleScenarioAdded(String hubId, ScenarioAddedEventAvro event) {
         String scenarioName = event.getName().toString();
         log.info("Добавление/обновление сценария: hubId={}, name={}", hubId, scenarioName);
 
+        // Удаляем старый сценарий, если существует
         scenarioRepository.findByHubIdAndName(hubId, scenarioName)
                 .ifPresent(existingScenario -> {
                     scenarioRepository.delete(existingScenario);
@@ -113,7 +123,8 @@ public class HubEventProcessor implements Runnable {
         // Добавляем условия
         for (ScenarioConditionAvro conditionAvro : event.getConditions()) {
             String sensorId = conditionAvro.getSensorId().toString();
-            Sensor sensor = sensorRepository.findById(sensorId)
+
+            Sensor sensor = sensorRepository.findByIdAndHubId(sensorId, hubId)
                     .orElseGet(() -> {
                         log.info("Датчик с id={} не найден, создаем новый", sensorId);
                         return sensorRepository.save(Sensor.builder().id(sensorId).hubId(hubId).build());
@@ -126,7 +137,8 @@ public class HubEventProcessor implements Runnable {
         // Добавляем действия
         for (DeviceActionAvro actionAvro : event.getActions()) {
             String sensorId = actionAvro.getSensorId().toString();
-            Sensor sensor = sensorRepository.findById(sensorId)
+
+            Sensor sensor = sensorRepository.findByIdAndHubId(sensorId, hubId)
                     .orElseGet(() -> {
                         log.info("Датчик с id={} не найден, создаем новый", sensorId);
                         return sensorRepository.save(Sensor.builder().id(sensorId).hubId(hubId).build());

@@ -2,7 +2,6 @@ package ru.yandex.practicum.analyzer.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.BatchSize;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,8 +33,7 @@ public class Scenario {
             inverseJoinColumns = @JoinColumn(name = "sensor_id")
     )
     @MapKeyJoinColumn(name = "condition_id")
-    @BatchSize(size = 20)
-    @Builder.Default  // <-- ИСПРАВЛЕНО
+    @Builder.Default
     private Map<Sensor, Condition> conditions = new HashMap<>();
 
     @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
@@ -45,7 +43,6 @@ public class Scenario {
             inverseJoinColumns = @JoinColumn(name = "sensor_id")
     )
     @MapKeyJoinColumn(name = "action_id")
-    @BatchSize(size = 20)
-    @Builder.Default  // <-- ИСПРАВЛЕНО
+    @Builder.Default
     private Map<Sensor, Action> actions = new HashMap<>();
 }

@@ -21,6 +21,7 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorsSnapshotAvro;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -47,10 +48,21 @@ public class SnapshotProcessor {
                 ConsumerRecords<String, SensorsSnapshotAvro> records =
                         snapshotConsumer.poll(Duration.ofSeconds(1));
 
-                for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
-                    processSnapshot(record.value());
+                if (records.isEmpty()) {
+                    continue;
                 }
 
+                for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
+                    try {
+                        processSnapshot(record.value());
+                    } catch (Exception e) {
+                        log.error("Ошибка обработки снапшота: {}", e.getMessage(), e);
+                        // Не коммитим, если не обработали
+                        return;
+                    }
+                }
+
+                // Коммитим только если все снапшоты успешно обработаны
                 snapshotConsumer.commitSync();
             }
         } catch (Exception e) {
@@ -68,8 +80,10 @@ public class SnapshotProcessor {
 
     private void processSnapshot(SensorsSnapshotAvro snapshot) {
         String hubId = snapshot.getHubId().toString();
+        Map<CharSequence, ?> sensorsState = snapshot.getSensorsState();
+
         log.info("Получен снапшот для хаба: hubId={}, датчиков: {}",
-                hubId, snapshot.getSensorsState().size());
+                hubId, sensorsState != null ? sensorsState.size() : 0);
 
         List<Scenario> scenarios = scenarioRepository.findByHubId(hubId);
 
@@ -90,17 +104,20 @@ public class SnapshotProcessor {
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
         log.info("Выполнение действий для сценария '{}' хаба '{}'", scenario.getName(), scenario.getHubId());
+
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
 
             try {
+                ActionTypeProto actionType = ActionTypeProto.valueOf(action.getType());
+
                 DeviceActionRequest request = DeviceActionRequest.newBuilder()
                         .setHubId(scenario.getHubId())
                         .setScenarioName(scenario.getName())
                         .setAction(DeviceActionProto.newBuilder()
                                 .setSensorId(sensor.getId())
-                                .setType(ActionTypeProto.valueOf(action.getType()))
+                                .setType(actionType)
                                 .setValue(action.getValue() != null ? action.getValue() : 0)
                                 .build())
                         .setTimestamp(Timestamp.newBuilder()
@@ -111,24 +128,20 @@ public class SnapshotProcessor {
 
                 log.debug("Отправка запроса в hub-router: {}", request);
 
-                // Пытаемся вызвать реальный метод
+                // Вызываем реальный метод
                 hubRouterClient.handleDeviceAction(request);
 
                 log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
 
             } catch (io.grpc.StatusRuntimeException e) {
-                // Ловим все ошибки gRPC, связанные с недоступностью или отсутствием метода
-                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED ||
-                        e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE) {
-                    log.warn("Hub-router недоступен или не реализован. Действие считается отправленным: sensorId={}", sensor.getId());
-                } else {
-                    log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}", sensor.getId(), e.getMessage(), e);
-                    throw e; // Пробрасываем другие ошибки, чтобы тест упал, если что-то реально не так
-                }
+                log.error("Ошибка gRPC при отправке действия в hub-router: status={}, description={}, sensorId={}",
+                        e.getStatus().getCode(), e.getStatus().getDescription(), sensor.getId(), e);
+                throw new RuntimeException("Ошибка отправки действия в hub-router", e);
             } catch (Exception e) {
-                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}", sensor.getId(), e.getMessage(), e);
-                throw new RuntimeException(e); // Пробрасываем, чтобы тест упал
+                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}",
+                        sensor.getId(), e.getMessage(), e);
+                throw new RuntimeException("Неожиданная ошибка при отправке действия", e);
             }
         }
     }

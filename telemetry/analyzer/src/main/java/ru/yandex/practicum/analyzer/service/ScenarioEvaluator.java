@@ -1,6 +1,5 @@
 package ru.yandex.practicum.analyzer.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.analyzer.entity.*;
@@ -11,7 +10,6 @@ import java.util.function.BiPredicate;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ScenarioEvaluator {
 
     private static final Map<String, BiPredicate<Integer, Integer>> OPERATIONS = Map.of(
@@ -20,7 +18,36 @@ public class ScenarioEvaluator {
             "LOWER_THAN", (v, t) -> v < t
     );
 
-    public boolean evaluateCondition(Condition condition, SensorStateAvro state) {
+    public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
+        log.info("Проверка сценария '{}' для хаба {} (условий: {})",
+                scenario.getName(), snapshot.getHubId(), scenario.getConditions().size());
+
+        for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
+            Sensor sensor = entry.getKey();
+            Condition condition = entry.getValue();
+
+            SensorStateAvro state = getSensorState(snapshot, sensor.getId());
+            if (state == null) {
+                log.info("  ❌ Датчик {} не найден в снапшоте", sensor.getId());
+                return false;
+            }
+
+            if (!evaluateCondition(condition, state)) {
+                log.info("  ❌ Условие не выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
+                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
+                return false;
+            } else {
+                log.info("  ✅ Условие выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
+                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
+            }
+        }
+
+        log.info("✅ Сценарий '{}' активирован! Выполняется {} действий",
+                scenario.getName(), scenario.getActions().size());
+        return true;
+    }
+
+    private boolean evaluateCondition(Condition condition, SensorStateAvro state) {
         String type = condition.getType();
         String operation = condition.getOperation();
         Integer expectedValue = condition.getValue();
@@ -47,6 +74,10 @@ public class ScenarioEvaluator {
     }
 
     private Integer extractValue(Object data, String type) {
+        if (data == null) {
+            return null;
+        }
+
         return switch (type) {
             case "MOTION" -> {
                 if (data instanceof MotionSensorAvro motion) {
@@ -99,36 +130,6 @@ public class ScenarioEvaluator {
         };
     }
 
-    public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.info("Проверка сценария '{}' для хаба {} (условий: {})",
-                scenario.getName(), snapshot.getHubId(), scenario.getConditions().size());
-
-        for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
-            Sensor sensor = entry.getKey();
-            Condition condition = entry.getValue();
-
-            // ИСПРАВЛЕНИЕ ЗДЕСЬ: используем новый безопасный метод
-            SensorStateAvro state = getSensorState(snapshot, sensor.getId());
-            if (state == null) {
-                log.info("  ❌ Датчик {} не найден в снапшоте", sensor.getId());
-                return false;
-            }
-
-            if (!evaluateCondition(condition, state)) {
-                log.info("  ❌ Условие не выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
-                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
-                return false;
-            } else {
-                log.info("  ✅ Условие выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
-                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
-            }
-        }
-
-        log.info("✅ Сценарий '{}' активирован! Выполняется {} действий",
-                scenario.getName(), scenario.getActions().size());
-        return true;
-    }
-
     private SensorStateAvro getSensorState(SensorsSnapshotAvro snapshot, String sensorId) {
         Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
         if (states == null) {
@@ -136,17 +137,6 @@ public class ScenarioEvaluator {
         }
 
         // Прямой поиск по ключу-строке
-        SensorStateAvro state = states.get(sensorId);
-        if (state != null) {
-            return state;
-        }
-
-        // Если не найден, перебираем все ключи и сравниваем их строковые представления
-        for (Map.Entry<CharSequence, SensorStateAvro> entry : states.entrySet()) {
-            if (entry.getKey().toString().equals(sensorId)) {
-                return entry.getValue();
-            }
-        }
-        return null;
+        return states.get(sensorId);
     }
 }

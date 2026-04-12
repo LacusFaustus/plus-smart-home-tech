@@ -34,12 +34,12 @@ kafka:
       group-id: analyzer-hub-events-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 10
+      max-poll-records: 1
     snapshots:
       group-id: analyzer-snapshots-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 10
+      max-poll-records: 1
   topics:
     hub-events: telemetry.hubs.v1
     snapshots: telemetry.snapshots.v1
