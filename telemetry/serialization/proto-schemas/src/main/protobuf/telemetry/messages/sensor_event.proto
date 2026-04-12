@@ -9,15 +9,31 @@ option java_multiple_files = true;
 
 message SensorEventProto {
   string id = 1;
-  string hub_id = 2;  // ВАЖНО: hub_id, не hubId
-  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Timestamp timestamp = 2;
+  string hub_id = 3;  // ВАЖНО: hub_id, не hubId!
 
-  // Плоская структура без oneof!
-  ClimateSensorProto climate_sensor = 4;
-  LightSensorProto light_sensor = 5;
-  MotionSensorProto motion_sensor = 6;
-  SwitchSensorProto switch_sensor = 7;
-  TemperatureSensorProto temperature_sensor = 8;
+  // Плоская структура без oneof
+  MotionSensorProto motion_sensor = 4;
+  TemperatureSensorProto temperature_sensor = 5;
+  LightSensorProto light_sensor = 6;
+  ClimateSensorProto climate_sensor = 7;
+  SwitchSensorProto switch_sensor = 8;
+}
+
+message MotionSensorProto {
+  int32 link_quality = 1;
+  int32 motion = 2;  // int32, не bool
+  int32 voltage = 3;
+}
+
+message TemperatureSensorProto {
+  int32 temperature_c = 1;
+  int32 temperature_f = 2;
+}
+
+message LightSensorProto {
+  int32 link_quality = 1;
+  int32 luminosity = 2;
 }
 
 message ClimateSensorProto {
@@ -26,22 +42,6 @@ message ClimateSensorProto {
   int32 co2_level = 3;
 }
 
-message LightSensorProto {
-  int32 link_quality = 1;
-  int32 luminosity = 2;
-}
-
-message MotionSensorProto {
-  int32 link_quality = 1;
-  int32 motion = 2;      // int32, не bool!
-  int32 voltage = 3;
-}
-
 message SwitchSensorProto {
-  int32 state = 1;       // int32, не bool!
-}
-
-message TemperatureSensorProto {
-  int32 temperature_c = 1;
-  int32 temperature_f = 2;
+  int32 state = 1;  // int32, не bool
 }

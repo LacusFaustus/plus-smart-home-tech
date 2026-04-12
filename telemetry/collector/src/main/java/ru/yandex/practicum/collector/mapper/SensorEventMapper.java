@@ -17,22 +17,22 @@ public class SensorEventMapper {
 
         Object payload = null;
 
-        if (event.hasClimateSensor()) {
-            payload = mapClimateSensor(event.getClimateSensor());
-        } else if (event.hasLightSensor()) {
-            payload = mapLightSensor(event.getLightSensor());
-        } else if (event.hasMotionSensor()) {
+        if (event.hasMotionSensor()) {
             payload = mapMotionSensor(event.getMotionSensor());
-        } else if (event.hasSwitchSensor()) {
-            payload = mapSwitchSensor(event.getSwitchSensor());
         } else if (event.hasTemperatureSensor()) {
             payload = mapTemperatureSensor(event.getTemperatureSensor());
+        } else if (event.hasLightSensor()) {
+            payload = mapLightSensor(event.getLightSensor());
+        } else if (event.hasClimateSensor()) {
+            payload = mapClimateSensor(event.getClimateSensor());
+        } else if (event.hasSwitchSensor()) {
+            payload = mapSwitchSensor(event.getSwitchSensor());
         }
 
         return SensorEventAvro.newBuilder()
                 .setId(event.getId())
-                .setHubId(event.getHubId())
-                .setTimestamp(instant)  // ← Оставляем Instant
+                .setHubId(event.getHubId())  // hub_id -> hubId
+                .setTimestamp(instant)
                 .setPayload(payload)
                 .build();
     }
@@ -62,7 +62,7 @@ public class SensorEventMapper {
 
     private SwitchSensorAvro mapSwitchSensor(SwitchSensorProto proto) {
         return SwitchSensorAvro.newBuilder()
-                .setState(proto.getState() != 0)    // int -> boolean
+                .setState(proto.getState() != 0)  // int -> boolean
                 .build();
     }
 

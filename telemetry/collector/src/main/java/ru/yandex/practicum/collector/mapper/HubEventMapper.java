@@ -1,11 +1,17 @@
 package ru.yandex.practicum.collector.mapper;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import ru.yandex.practicum.grpc.telemetry.event.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.Instant;
 
+@Slf4j
 @UtilityClass
 public class HubEventMapper {
 
@@ -25,7 +31,7 @@ public class HubEventMapper {
 
         return HubEventAvro.newBuilder()
                 .setHubId(event.getHubId())
-                .setTimestamp(instant)  // ← Оставляем Instant
+                .setTimestamp(instant)
                 .setPayload(payload)
                 .build();
     }
@@ -62,20 +68,72 @@ public class HubEventMapper {
     }
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
-        Object value = proto.getValue();
+        ConditionTypeProto type = proto.getType();
+
+        int intValue = extractValue(proto, type);
+
+        Object value = intValue;
 
         // Для SWITCH и MOTION конвертируем int в boolean
-        if (proto.getType() == ConditionTypeProto.SWITCH ||
-                proto.getType() == ConditionTypeProto.MOTION) {
-            value = (proto.getValue() != 0);
+        if (type == ConditionTypeProto.SWITCH || type == ConditionTypeProto.MOTION) {
+            value = (intValue != 0);
         }
 
         return ScenarioConditionAvro.newBuilder()
                 .setSensorId(proto.getSensorId())
-                .setType(mapConditionType(proto.getType()))
+                .setType(mapConditionType(type))
                 .setOperation(mapConditionOperation(proto.getOperation()))
                 .setValue(value)
                 .build();
+    }
+
+    private int extractValue(ScenarioConditionProto proto, ConditionTypeProto type) {
+        // Для MOTION и SWITCH (тег 4) - работает стандартный метод
+        if (type == ConditionTypeProto.MOTION || type == ConditionTypeProto.SWITCH) {
+            int value = proto.getValue();
+            log.debug("{} value extracted via getValue(): {}", type, value);
+            return value;
+        }
+
+        // Для остальных типов (LUMINOSITY, TEMPERATURE) - ручной парсинг тега 5
+        try {
+            byte[] bytes = proto.toByteArray();
+            int parsedValue = parseValueFromTag5(bytes);
+            if (parsedValue != 0) {
+                log.debug("Value for {} extracted via manual parsing (tag 5): {}", type, parsedValue);
+                return parsedValue;
+            }
+        } catch (IOException e) {
+            log.warn("Failed to manually parse value from tag 5: {}", e.getMessage());
+        }
+
+        log.warn("Could not extract value for condition of type {}. Returning 0.", type);
+        return 0;
+    }
+
+    /**
+     * Парсит байты Protobuf сообщения и извлекает значение поля с тегом 5.
+     * Формат Protobuf: [tag] [type] [value]
+     * Тег кодируется как (field_number << 3) | wire_type
+     * wire_type для int32 = 0
+     */
+    private int parseValueFromTag5(byte[] bytes) throws IOException {
+        CodedInputStream input = CodedInputStream.newInstance(bytes);
+
+        while (!input.isAtEnd()) {
+            int tag = input.readTag();
+            int fieldNumber = tag >>> 3;
+
+            if (fieldNumber == 5) {
+                // Читаем int32 значение
+                return input.readInt32();
+            } else {
+                // Пропускаем другие поля
+                input.skipField(tag);
+            }
+        }
+
+        return 0;
     }
 
     private DeviceActionAvro mapAction(DeviceActionProto proto) {
@@ -91,7 +149,7 @@ public class HubEventMapper {
         try {
             return DeviceTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown device type: " + type);
+            throw new IllegalArgumentException("Unknown device type: " + type, e);
         }
     }
 
@@ -99,7 +157,7 @@ public class HubEventMapper {
         try {
             return ConditionTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown condition type: " + type);
+            throw new IllegalArgumentException("Unknown condition type: " + type, e);
         }
     }
 
@@ -107,7 +165,7 @@ public class HubEventMapper {
         try {
             return ConditionOperationAvro.valueOf(op.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown condition operation: " + op);
+            throw new IllegalArgumentException("Unknown condition operation: " + op, e);
         }
     }
 
@@ -115,7 +173,7 @@ public class HubEventMapper {
         try {
             return ActionTypeAvro.valueOf(type.name());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Unknown action type: " + type);
+            throw new IllegalArgumentException("Unknown action type: " + type, e);
         }
     }
 }
