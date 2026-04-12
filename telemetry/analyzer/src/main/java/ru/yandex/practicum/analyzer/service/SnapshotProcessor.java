@@ -165,7 +165,7 @@ public class SnapshotProcessor {
             log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
                     scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
-            // ВСЕГДА отправляем реальный gRPC запрос, даже в CI
+            // ВСЕГДА отправляем реальный gRPC запрос - НЕТ проверки на CI!
             try {
                 hubRouterClient.handleDeviceAction(request);
                 log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
