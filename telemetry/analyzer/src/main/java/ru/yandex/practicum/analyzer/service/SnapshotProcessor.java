@@ -57,6 +57,7 @@ public class SnapshotProcessor {
                         processSnapshot(record.value());
                     } catch (Exception e) {
                         log.error("Ошибка обработки снапшота: {}", e.getMessage(), e);
+                        // Не коммитим, если не обработали
                         return;
                     }
                 }
@@ -178,6 +179,7 @@ public class SnapshotProcessor {
                             }
                         } else {
                             log.error("Не удалось отправить действие после {} попыток", maxRetries);
+                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - просто логируем и продолжаем
                         }
                     } else if (statusCode == io.grpc.Status.Code.UNIMPLEMENTED) {
                         log.info("Метод Hub-router не реализован (тестовый режим). Действие считается отправленным: sensorId={}",
@@ -197,20 +199,24 @@ public class SnapshotProcessor {
                             }
                         } else {
                             log.error("Таймаут соединения после {} попыток", maxRetries);
+                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ
                         }
                     } else {
                         log.error("Критическая gRPC ошибка: status={}, sensorId={}", statusCode, sensor.getId());
+                        // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
                         break;
                     }
                 } catch (Exception e) {
                     log.error("Неожиданная ошибка при отправке действия: sensorId={}, error={}",
                             sensor.getId(), e.getMessage(), e);
+                    // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
                     break;
                 }
             }
 
             if (!sent) {
                 log.warn("Действие для датчика {} не отправлено, переходим к следующему", sensor.getId());
+                // Продолжаем выполнение остальных действий
             }
         }
     }
