@@ -151,6 +151,7 @@ public class SnapshotProcessor {
                 try {
                     log.debug("Попытка {} отправки действия для датчика {}", retryCount + 1, sensor.getId());
 
+                    // ВАЖНО: метод вызывается с маленькой буквы 'h'
                     hubRouterClient.handleDeviceAction(request);
 
                     log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
@@ -179,7 +180,6 @@ public class SnapshotProcessor {
                             }
                         } else {
                             log.error("Не удалось отправить действие после {} попыток", maxRetries);
-                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - просто логируем и продолжаем
                         }
                     } else if (statusCode == io.grpc.Status.Code.UNIMPLEMENTED) {
                         log.info("Метод Hub-router не реализован (тестовый режим). Действие считается отправленным: sensorId={}",
@@ -199,24 +199,20 @@ public class SnapshotProcessor {
                             }
                         } else {
                             log.error("Таймаут соединения после {} попыток", maxRetries);
-                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ
                         }
                     } else {
                         log.error("Критическая gRPC ошибка: status={}, sensorId={}", statusCode, sensor.getId());
-                        // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
                         break;
                     }
                 } catch (Exception e) {
                     log.error("Неожиданная ошибка при отправке действия: sensorId={}, error={}",
                             sensor.getId(), e.getMessage(), e);
-                    // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
                     break;
                 }
             }
 
             if (!sent) {
                 log.warn("Действие для датчика {} не отправлено, переходим к следующему", sensor.getId());
-                // Продолжаем выполнение остальных действий
             }
         }
     }
