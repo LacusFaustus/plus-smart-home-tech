@@ -136,19 +136,6 @@ public class SnapshotProcessor {
         log.info("Executing {} actions for scenario '{}' of hub '{}'",
                 scenario.getActions().size(), scenario.getName(), scenario.getHubId());
 
-        // В CI окружении просто логируем действия (тесты читают логи)
-        if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
-            log.info("=== CI MODE: Actions executed successfully ===");
-            for (var entry : scenario.getActions().entrySet()) {
-                Sensor sensor = entry.getKey();
-                Action action = entry.getValue();
-                log.info("Action: hubId={}, scenario={}, sensorId={}, type={}, value={}",
-                        scenario.getHubId(), scenario.getName(), sensor.getId(),
-                        action.getType(), action.getValue());
-            }
-            return;
-        }
-
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
@@ -178,14 +165,13 @@ public class SnapshotProcessor {
             log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
                     scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
-            // ВСЕГДА отправляем реальный gRPC запрос - НЕТ проверки на CI!
+            // ВСЕГДА отправляем, НЕТ проверки на CI
             try {
                 hubRouterClient.handleDeviceAction(request);
                 log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
             } catch (Exception e) {
-                // Логируем ошибку, но не прерываем выполнение
-                log.error("Failed to send action: sensorId={}, error={}",
+                log.error("❌ Failed to send action: sensorId={}, error={}",
                         sensor.getId(), e.getMessage());
             }
         }

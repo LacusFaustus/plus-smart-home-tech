@@ -4,6 +4,8 @@ import lombok.experimental.UtilityClass;
 import ru.yandex.practicum.analyzer.entity.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
+import static org.apache.kafka.common.requests.DeleteAclsResponse.log;
+
 @UtilityClass
 public class AvroToEntityMapper {
 
@@ -39,6 +41,10 @@ public class AvroToEntityMapper {
         if (value instanceof Boolean) {
             return (Boolean) value ? 1 : 0;
         }
+        if (value instanceof Long) {
+            return ((Long) value).intValue();
+        }
+        log.warn("Unexpected value type for condition: {}", value.getClass());
         return null;
     }
 }
