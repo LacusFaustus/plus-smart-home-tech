@@ -100,8 +100,6 @@ public class ScenarioEvaluator {
     }
 
     public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
-
         log.info("Проверка сценария '{}' для хаба {} (условий: {})",
                 scenario.getName(), snapshot.getHubId(), scenario.getConditions().size());
 
@@ -109,7 +107,8 @@ public class ScenarioEvaluator {
             Sensor sensor = entry.getKey();
             Condition condition = entry.getValue();
 
-            SensorStateAvro state = states.get(sensor.getId());
+            // ИСПРАВЛЕНИЕ ЗДЕСЬ: используем новый безопасный метод
+            SensorStateAvro state = getSensorState(snapshot, sensor.getId());
             if (state == null) {
                 log.info("  ❌ Датчик {} не найден в снапшоте", sensor.getId());
                 return false;
@@ -128,5 +127,26 @@ public class ScenarioEvaluator {
         log.info("✅ Сценарий '{}' активирован! Выполняется {} действий",
                 scenario.getName(), scenario.getActions().size());
         return true;
+    }
+
+    private SensorStateAvro getSensorState(SensorsSnapshotAvro snapshot, String sensorId) {
+        Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
+        if (states == null) {
+            return null;
+        }
+
+        // Прямой поиск по ключу-строке
+        SensorStateAvro state = states.get(sensorId);
+        if (state != null) {
+            return state;
+        }
+
+        // Если не найден, перебираем все ключи и сравниваем их строковые представления
+        for (Map.Entry<CharSequence, SensorStateAvro> entry : states.entrySet()) {
+            if (entry.getKey().toString().equals(sensorId)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 }
