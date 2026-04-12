@@ -65,17 +65,7 @@ public class HubEventMapper {
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
         ConditionTypeProto type = proto.getType();
-        int intValue;
-
-        // Для MOTION клиент hub-router использует тег 4, который не соответствует нашей схеме
-        // Поэтому извлекаем значение через рефлексию из поля value_
-        if (type == ConditionTypeProto.MOTION) {
-            intValue = extractValueForMotion(proto);
-        } else {
-            // Для остальных типов (LUMINOSITY, TEMPERATURE, SWITCH, CO2LEVEL, HUMIDITY)
-            // значение приходит с тегом 5, который соответствует нашей схеме
-            intValue = proto.getValue();
-        }
+        int intValue = extractValue(proto);
 
         Object value = intValue;
 
@@ -93,22 +83,53 @@ public class HubEventMapper {
     }
 
     /**
-     * Извлекает значение для MOTION через рефлексию.
-     * Клиент hub-router отправляет MOTION с тегом 4, который в сгенерированном классе
-     * сохраняется в поле value_ (так как это oneof поле).
+     * Извлекает значение value из ScenarioConditionProto.
+     * Пробует все возможные способы получения значения.
      */
-    private int extractValueForMotion(ScenarioConditionProto proto) {
+    private int extractValue(ScenarioConditionProto proto) {
+        // Способ 1: Стандартный getValue() (для тега 5)
         try {
-            java.lang.reflect.Field field = proto.getClass().getDeclaredField("value_");
-            field.setAccessible(true);
-            Object fieldValue = field.get(proto);
+            int value = proto.getValue();
+            if (value != 0) {
+                return value;
+            }
+        } catch (Exception e) {
+            // Игнорируем, пробуем дальше
+        }
+
+        // Способ 2: Прямой доступ к полю value_ через рефлексию
+        try {
+            java.lang.reflect.Field valueField = proto.getClass().getDeclaredField("value_");
+            valueField.setAccessible(true);
+            Object fieldValue = valueField.get(proto);
             if (fieldValue instanceof Integer) {
                 return (int) fieldValue;
             }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            log.warn("Не удалось извлечь value для MOTION через рефлексию: {}", e.getMessage());
+        } catch (Exception e) {
+            // Игнорируем, пробуем дальше
         }
-        // Если не удалось извлечь, возвращаем 0 (значение по умолчанию)
+
+        // Способ 3: Поиск всех полей, которые могут содержать значение
+        try {
+            java.lang.reflect.Field[] fields = proto.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                if (field.getName().contains("value") || field.getName().contains("Value")) {
+                    field.setAccessible(true);
+                    Object fieldValue = field.get(proto);
+                    if (fieldValue instanceof Integer) {
+                        int val = (int) fieldValue;
+                        if (val != 0) {
+                            return val;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Не удалось извлечь value через рефлексию: {}", e.getMessage());
+        }
+
+        // Если ничего не нашли, возвращаем 0
+        log.warn("Не удалось извлечь value для условия типа {}", proto.getType());
         return 0;
     }
 
