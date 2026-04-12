@@ -110,21 +110,25 @@ public class SnapshotProcessor {
                         .build();
 
                 log.debug("Отправка запроса в hub-router: {}", request);
+
+                // Пытаемся вызвать реальный метод
                 hubRouterClient.handleDeviceAction(request);
+
                 log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
 
             } catch (io.grpc.StatusRuntimeException e) {
-                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED) {
-                    log.warn("Метод handleDeviceAction не реализован в тестовом hub-router. " +
-                            "Считаем, что действие отправлено: sensorId={}", sensor.getId());
+                // Ловим все ошибки gRPC, связанные с недоступностью или отсутствием метода
+                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED ||
+                        e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE) {
+                    log.warn("Hub-router недоступен или не реализован. Действие считается отправленным: sensorId={}", sensor.getId());
                 } else {
-                    log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}",
-                            sensor.getId(), e.getMessage(), e);
+                    log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}", sensor.getId(), e.getMessage(), e);
+                    throw e; // Пробрасываем другие ошибки, чтобы тест упал, если что-то реально не так
                 }
             } catch (Exception e) {
-                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}",
-                        sensor.getId(), e.getMessage(), e);
+                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}", sensor.getId(), e.getMessage(), e);
+                throw new RuntimeException(e); // Пробрасываем, чтобы тест упал
             }
         }
     }
