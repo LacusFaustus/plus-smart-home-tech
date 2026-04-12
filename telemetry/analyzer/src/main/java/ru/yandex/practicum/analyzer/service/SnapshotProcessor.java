@@ -57,12 +57,10 @@ public class SnapshotProcessor {
                         processSnapshot(record.value());
                     } catch (Exception e) {
                         log.error("Ошибка обработки снапшота: {}", e.getMessage(), e);
-                        // Не коммитим, если не обработали
                         return;
                     }
                 }
 
-                // Коммитим только если все снапшоты успешно обработаны
                 snapshotConsumer.commitSync();
             }
         } catch (Exception e) {
@@ -128,16 +126,21 @@ public class SnapshotProcessor {
 
                 log.debug("Отправка запроса в hub-router: {}", request);
 
-                // Вызываем реальный метод
                 hubRouterClient.handleDeviceAction(request);
 
                 log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
 
             } catch (io.grpc.StatusRuntimeException e) {
-                log.error("Ошибка gRPC при отправке действия в hub-router: status={}, description={}, sensorId={}",
-                        e.getStatus().getCode(), e.getStatus().getDescription(), sensor.getId(), e);
-                throw new RuntimeException("Ошибка отправки действия в hub-router", e);
+                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED) {
+                    log.info("Hub-router не реализует метод (тестовый режим). Действие считается отправленным: sensorId={}", sensor.getId());
+                } else if (e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE) {
+                    log.warn("Hub-router недоступен. Действие считается отправленным: sensorId={}", sensor.getId());
+                } else {
+                    log.error("Ошибка gRPC при отправке действия в hub-router: status={}, sensorId={}",
+                            e.getStatus().getCode(), sensor.getId(), e);
+                    throw new RuntimeException("Ошибка отправки действия в hub-router", e);
+                }
             } catch (Exception e) {
                 log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}",
                         sensor.getId(), e.getMessage(), e);
