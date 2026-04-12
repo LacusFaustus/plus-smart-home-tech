@@ -1,6 +1,7 @@
 package ru.yandex.practicum.analyzer.service;
 
 import com.google.protobuf.Timestamp;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,9 +38,15 @@ public class SnapshotProcessor {
 
     private volatile boolean running = true;
 
+    @PostConstruct
+    public void init() {
+        log.info("SnapshotProcessor initialized with gRPC client: {}",
+                hubRouterClient != null ? "present" : "NULL");
+    }
+
     public void start() {
         snapshotConsumer.subscribe(List.of(kafkaConfig.getTopics().getSnapshots()));
-        log.info("SnapshotProcessor подписан на топик: {}", kafkaConfig.getTopics().getSnapshots());
+        log.info("SnapshotProcessor subscribed to topic: {}", kafkaConfig.getTopics().getSnapshots());
 
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
@@ -55,79 +62,79 @@ public class SnapshotProcessor {
                 for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
                     try {
                         processSnapshot(record.value());
+                        snapshotConsumer.commitSync();
                     } catch (Exception e) {
-                        log.error("Ошибка обработки снапшота: {}", e.getMessage(), e);
-                        // Не коммитим, если не обработали
-                        return;
+                        log.error("Error processing snapshot: {}", e.getMessage(), e);
                     }
                 }
-
-                snapshotConsumer.commitSync();
             }
         } catch (Exception e) {
-            log.error("Ошибка в SnapshotProcessor", e);
+            log.error("Error in SnapshotProcessor", e);
         } finally {
             try {
                 snapshotConsumer.commitSync();
             } catch (Exception e) {
-                log.error("Ошибка при финальном коммите", e);
+                log.error("Error during final commit", e);
             }
             snapshotConsumer.close();
-            log.info("SnapshotConsumer закрыт");
+            log.info("SnapshotConsumer closed");
         }
     }
 
     private void processSnapshot(SensorsSnapshotAvro snapshot) {
         String hubId = snapshot.getHubId().toString();
-        Map<CharSequence, ?> sensorsState = snapshot.getSensorsState();
+        log.info("=== PROCESSING SNAPSHOT for hub: {} ===", hubId);
+        log.info("Snapshot timestamp: {}, sensors count: {}",
+                snapshot.getTimestamp(),
+                snapshot.getSensorsState() != null ? snapshot.getSensorsState().size() : 0);
 
-        log.info("Получен снапшот для хаба: hubId={}, датчиков: {}",
-                hubId, sensorsState != null ? sensorsState.size() : 0);
+        if (snapshot.getSensorsState() != null) {
+            for (Map.Entry<CharSequence, ru.yandex.practicum.kafka.telemetry.event.SensorStateAvro> entry : snapshot.getSensorsState().entrySet()) {
+                log.info("Sensor in snapshot: id={}, data={}",
+                        entry.getKey(), entry.getValue().getData());
+            }
+        }
 
         List<Scenario> scenarios = scenarioRepository.findByHubId(hubId);
+        log.info("Found {} scenarios for hub {}", scenarios.size(), hubId);
 
         if (scenarios.isEmpty()) {
-            log.debug("Нет сценариев для хаба: {}", hubId);
+            log.debug("No scenarios for hub: {}", hubId);
             return;
         }
 
         for (Scenario scenario : scenarios) {
-            log.debug("Проверка сценария: {}", scenario.getName());
+            log.info("Checking scenario: name={}, conditions count={}",
+                    scenario.getName(), scenario.getConditions().size());
+
+            for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
+                log.info("  Condition: sensorId={}, type={}, operation={}, value={}",
+                        entry.getKey().getId(),
+                        entry.getValue().getType(),
+                        entry.getValue().getOperation(),
+                        entry.getValue().getValue());
+            }
 
             try {
-                if (scenarioEvaluator.evaluateScenario(scenario, snapshot)) {
-                    log.info("Сценарий '{}' активирован для хаба {}", scenario.getName(), hubId);
-                    try {
-                        executeActions(scenario, snapshot);
-                    } catch (Exception e) {
-                        log.error("Ошибка при выполнении действий сценария '{}': {}",
-                                scenario.getName(), e.getMessage(), e);
-                    }
+                boolean evaluated = scenarioEvaluator.evaluateScenario(scenario, snapshot);
+                log.info("Scenario '{}' evaluated to: {}", scenario.getName(), evaluated);
+
+                if (evaluated) {
+                    log.info("✅ Scenario '{}' ACTIVATED for hub {}", scenario.getName(), hubId);
+                    executeActions(scenario, snapshot);
+                } else {
+                    log.info("❌ Scenario '{}' NOT activated", scenario.getName());
                 }
             } catch (Exception e) {
-                log.error("Ошибка при проверке сценария '{}': {}",
+                log.error("Error evaluating scenario '{}': {}",
                         scenario.getName(), e.getMessage(), e);
             }
         }
     }
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        // Для CI окружения пропускаем реальную отправку
-        if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
-            log.info("=== CI РЕЖИМ ===");
-            log.info("Сценарий '{}' активирован для хаба '{}'", scenario.getName(), scenario.getHubId());
-            log.info("Действия, которые были бы отправлены в Hub Router:");
-            for (var entry : scenario.getActions().entrySet()) {
-                Sensor sensor = entry.getKey();
-                Action action = entry.getValue();
-                log.info("  - Датчик: {}, Тип действия: {}, Значение: {}",
-                        sensor.getId(), action.getType(), action.getValue());
-            }
-            log.info("=== КОНЕЦ CI РЕЖИМА ===");
-            return;
-        }
-
-        log.info("Выполнение действий для сценария '{}' хаба '{}'", scenario.getName(), scenario.getHubId());
+        log.info("Executing {} actions for scenario '{}' of hub '{}'",
+                scenario.getActions().size(), scenario.getName(), scenario.getHubId());
 
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
@@ -137,7 +144,7 @@ public class SnapshotProcessor {
             try {
                 actionType = ActionTypeProto.valueOf(action.getType());
             } catch (IllegalArgumentException e) {
-                log.error("Неизвестный тип действия: {}", action.getType());
+                log.error("Unknown action type: {}", action.getType());
                 continue;
             }
 
@@ -155,90 +162,36 @@ public class SnapshotProcessor {
                             .build())
                     .build();
 
-            log.debug("Отправка запроса в hub-router: {}", request);
+            log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
+                    scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
             boolean sent = false;
             int maxRetries = 3;
             int retryCount = 0;
-            long retryDelayMs = 1000;
 
             while (!sent && retryCount < maxRetries) {
                 try {
-                    log.debug("Попытка {} отправки действия для датчика {}", retryCount + 1, sensor.getId());
+                    hubRouterClient.handleDeviceAction(request);
+                    log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
+                            sensor.getId(), action.getType(), action.getValue());
+                    sent = true;
+                } catch (Exception e) {
+                    retryCount++;
+                    log.warn("Failed to send action (attempt {}/{}): sensorId={}, error={}",
+                            retryCount, maxRetries, sensor.getId(), e.getMessage());
 
-                    // ВАЖНО: Оборачиваем вызов в try-catch для CI окружения
-                    try {
-                        hubRouterClient.handleDeviceAction(request);
-                        log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
-                                sensor.getId(), action.getType(), action.getValue());
-                        sent = true;
-                    } catch (Exception e) {
-                        // Для CI окружения просто логируем и считаем действие отправленным
-                        log.warn("Не удалось отправить действие в Hub Router (тестовое окружение): sensorId={}, error={}",
-                                sensor.getId(), e.getMessage());
-                        sent = true; // В CI считаем успехом
-                    }
-
-                } catch (io.grpc.StatusRuntimeException e) {
-                    io.grpc.Status.Code statusCode = e.getStatus().getCode();
-                    String description = e.getStatus().getDescription();
-
-                    log.warn("gRPC ошибка при отправке действия: status={}, description={}, sensorId={}",
-                            statusCode, description, sensor.getId());
-
-                    if (statusCode == io.grpc.Status.Code.UNAVAILABLE) {
-                        retryCount++;
-                        if (retryCount < maxRetries) {
-                            log.info("Hub-router недоступен, попытка {}/{} через {} мс",
-                                    retryCount + 1, maxRetries, retryDelayMs);
-                            try {
-                                Thread.sleep(retryDelayMs);
-                                retryDelayMs *= 2;
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                log.error("Ожидание прервано");
-                                return;
-                            }
-                        } else {
-                            log.error("Не удалось отправить действие после {} попыток", maxRetries);
-                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - просто логируем и продолжаем
-                        }
-                    } else if (statusCode == io.grpc.Status.Code.UNIMPLEMENTED) {
-                        log.info("Метод Hub-router не реализован (тестовый режим). Действие считается отправленным: sensorId={}",
-                                sensor.getId());
-                        sent = true;
-                    } else if (statusCode == io.grpc.Status.Code.DEADLINE_EXCEEDED) {
-                        retryCount++;
-                        if (retryCount < maxRetries) {
-                            log.warn("Таймаут соединения, попытка {}/{}", retryCount + 1, maxRetries);
-                            try {
-                                Thread.sleep(retryDelayMs);
-                                retryDelayMs *= 2;
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                log.error("Ожидание прервано");
-                                return;
-                            }
-                        } else {
-                            log.error("Таймаут соединения после {} попыток", maxRetries);
-                            // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ
+                    if (retryCount < maxRetries) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.error("Retry interrupted");
+                            break;
                         }
                     } else {
-                        log.error("Критическая gRPC ошибка: status={}, sensorId={}", statusCode, sensor.getId());
-                        // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
-                        break;
+                        log.error("Failed to send action after {} attempts", maxRetries);
                     }
-                } catch (Exception e) {
-                    log.error("Неожиданная ошибка при отправке действия: sensorId={}, error={}",
-                            sensor.getId(), e.getMessage(), e);
-                    // НЕ БРОСАЕМ ИСКЛЮЧЕНИЕ - логируем и переходим к следующему действию
-                    break;
                 }
-            }
-
-            if (!sent) {
-                log.warn("Действие для датчика {} не отправлено, переходим к следующему", sensor.getId());
-                // Продолжаем выполнение остальных действий
             }
         }
     }
