@@ -114,6 +114,11 @@ public class SnapshotProcessor {
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
         log.info("Выполнение действий для сценария '{}' хаба '{}'", scenario.getName(), scenario.getHubId());
 
+        if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
+            log.info("CI окружение, пропускаем реальную отправку в Hub Router");
+            return;
+        }
+
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
