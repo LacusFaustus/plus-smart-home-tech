@@ -1,32 +1,17 @@
 package ru.yandex.practicum.collector.mapper;
 
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.GeneratedMessageV3;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import ru.yandex.practicum.grpc.telemetry.event.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
-import java.lang.reflect.Field;
 import java.time.Instant;
-import java.util.Set;
 
 @Slf4j
 @UtilityClass
 public class HubEventMapper {
-
-    // Служебные поля Protobuf, которые нужно игнорировать
-    private static final Set<String> PROTOBUF_INTERNAL_FIELDS = Set.of(
-            "memoizedHashCode",
-            "memoizedSerializedSize",
-            "SENSOR_ID_FIELD_NUMBER",
-            "TYPE_FIELD_NUMBER",
-            "OPERATION_FIELD_NUMBER",
-            "VALUE_FIELD_NUMBER",
-            "unknownFields",
-            "defaultInstanceForType",
-            "bitField0_",
-            "bitField1_",
-            "bitField2_"
-    );
 
     public HubEventAvro mapToAvro(HubEventProto event) {
         Instant instant = Instant.ofEpochSecond(
@@ -83,7 +68,7 @@ public class HubEventMapper {
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
         ConditionTypeProto type = proto.getType();
 
-        int intValue = extractValue(proto);
+        int intValue = extractValue(proto, type);
 
         Object value = intValue;
 
@@ -102,105 +87,38 @@ public class HubEventMapper {
 
     /**
      * Извлекает значение value из ScenarioConditionProto.
-     * Поддерживает оба тега Protobuf: 4 (для MOTION) и 5 (для LUMINOSITY, TEMPERATURE, SWITCH).
+     * Для MOTION (тег 4) - через getValue()
+     * Для остальных (тег 5) - через рефлексию к полю с тегом 5
      */
-    private int extractValue(ScenarioConditionProto proto) {
-        // Способ 1: Стандартный getValue() для тега 4 (MOTION)
-        int value = proto.getValue();
-        if (value != 0) {
-            log.debug("Value extracted via getValue(): {}", value);
+    private int extractValue(ScenarioConditionProto proto, ConditionTypeProto type) {
+        // Для MOTION (тег 4) - работает стандартный метод
+        if (type == ConditionTypeProto.MOTION) {
+            int value = proto.getValue();
+            log.debug("MOTION value extracted via getValue(): {}", value);
             return value;
         }
 
-        // Отладочный вывод всех полей класса
-        debugPrintAllFields(proto);
-
-        // Способ 2: Прямой доступ к полю value_ через рефлексию для тега 5
+        // Для остальных типов - извлекаем значение из поля с тегом 5
         try {
-            Field valueField = ScenarioConditionProto.class.getDeclaredField("value_");
-            valueField.setAccessible(true);
-            Object fieldValue = valueField.get(proto);
-            if (fieldValue instanceof Integer) {
-                int extractedValue = (Integer) fieldValue;
-                if (extractedValue != 0) {
-                    log.debug("Value extracted via reflection from 'value_': {}", extractedValue);
+            // Получаем дескриптор поля с тегом 5
+            Descriptors.FieldDescriptor fieldDescriptor =
+                    ScenarioConditionProto.getDescriptor().findFieldByNumber(5);
+
+            if (fieldDescriptor != null) {
+                Object fieldValue = proto.getField(fieldDescriptor);
+                if (fieldValue instanceof Integer) {
+                    int extractedValue = (Integer) fieldValue;
+                    log.debug("Value for {} extracted via field descriptor (tag 5): {}", type, extractedValue);
                     return extractedValue;
                 }
             }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            log.debug("Could not extract value from 'value_' field: {}", e.getMessage());
+        } catch (Exception e) {
+            log.warn("Failed to extract value via field descriptor: {}", e.getMessage());
         }
 
-        // Способ 3: Поиск поля value
-        try {
-            Field valueField = ScenarioConditionProto.class.getDeclaredField("value");
-            valueField.setAccessible(true);
-            Object fieldValue = valueField.get(proto);
-            if (fieldValue instanceof Integer) {
-                int extractedValue = (Integer) fieldValue;
-                if (extractedValue != 0) {
-                    log.debug("Value extracted via reflection from 'value': {}", extractedValue);
-                    return extractedValue;
-                }
-            }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            log.debug("Could not extract value from 'value' field: {}", e.getMessage());
-        }
-
-        // Способ 4: Поиск любого подходящего int-поля (исключая служебные)
-        try {
-            for (Field field : ScenarioConditionProto.class.getDeclaredFields()) {
-                // Пропускаем служебные поля Protobuf
-                if (PROTOBUF_INTERNAL_FIELDS.contains(field.getName())) {
-                    continue;
-                }
-                // Пропускаем поля, которые явно не value
-                if (field.getName().contains("FieldNumber") ||
-                        field.getName().contains("bitField") ||
-                        field.getName().equals("sensorId_") ||
-                        field.getName().equals("type_") ||
-                        field.getName().equals("operation_")) {
-                    continue;
-                }
-
-                if (field.getType() == int.class || field.getType() == Integer.class) {
-                    field.setAccessible(true);
-                    Object fieldValue = field.get(proto);
-                    if (fieldValue instanceof Integer) {
-                        int extractedValue = (Integer) fieldValue;
-                        // Игнорируем 0, так как это может быть значение по умолчанию
-                        if (extractedValue != 0) {
-                            log.debug("Value extracted via fallback reflection from field '{}': {}",
-                                    field.getName(), extractedValue);
-                            return extractedValue;
-                        }
-                    }
-                }
-            }
-        } catch (IllegalAccessException e) {
-            log.error("Fallback reflection failed", e);
-        }
-
-        // Если ничего не нашли, возвращаем 0
-        log.warn("Could not extract value for condition of type {}. Returning 0.", proto.getType());
+        // Fallback: пробуем другие способы
+        log.warn("Could not extract value for condition of type {}. Returning 0.", type);
         return 0;
-    }
-
-    /**
-     * Отладочный метод для вывода всех полей класса и их значений.
-     */
-    private void debugPrintAllFields(ScenarioConditionProto proto) {
-        log.info("=== Debug: All fields of ScenarioConditionProto ===");
-        for (Field field : ScenarioConditionProto.class.getDeclaredFields()) {
-            field.setAccessible(true);
-            try {
-                Object fieldValue = field.get(proto);
-                log.info("Field: {} (type: {}) = {}", field.getName(), field.getType().getSimpleName(), fieldValue);
-            } catch (IllegalAccessException e) {
-                log.info("Field: {} (type: {}) = <inaccessible>", field.getName(), field.getType().getSimpleName());
-            }
-        }
-        log.info("=== End debug ===");
     }
 
     private DeviceActionAvro mapAction(DeviceActionProto proto) {
