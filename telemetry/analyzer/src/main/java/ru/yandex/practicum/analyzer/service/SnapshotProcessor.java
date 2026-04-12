@@ -89,6 +89,7 @@ public class SnapshotProcessor {
     }
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
+        log.info("Выполнение действий для сценария '{}' хаба '{}'", scenario.getName(), scenario.getHubId());
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
@@ -108,13 +109,22 @@ public class SnapshotProcessor {
                                 .build())
                         .build();
 
+                // --- ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ ---
+                log.info(">>> Тип запроса: {}", request.getClass().getName());
+                log.info(">>> Тип клиента: {}", hubRouterClient.getClass().getName());
+                log.info(">>> Содержимое запроса: hubId={}, scenarioName={}, actionSensorId={}, actionType={}, actionValue={}",
+                        request.getHubId(), request.getScenarioName(),
+                        request.getAction().getSensorId(), request.getAction().getType(), request.getAction().getValue());
+                // --- КОНЕЦ ДИАГНОСТИКИ ---
+
                 hubRouterClient.handleDeviceAction(request);
+
                 log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
 
             } catch (Exception e) {
                 log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}",
-                        sensor.getId(), e.getMessage());
+                        sensor.getId(), e.getMessage(), e);
             }
         }
     }
