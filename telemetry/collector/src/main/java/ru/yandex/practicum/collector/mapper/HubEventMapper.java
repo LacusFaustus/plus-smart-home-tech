@@ -7,10 +7,26 @@ import ru.yandex.practicum.kafka.telemetry.event.*;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.Set;
 
 @Slf4j
 @UtilityClass
 public class HubEventMapper {
+
+    // Служебные поля Protobuf, которые нужно игнорировать
+    private static final Set<String> PROTOBUF_INTERNAL_FIELDS = Set.of(
+            "memoizedHashCode",
+            "memoizedSerializedSize",
+            "SENSOR_ID_FIELD_NUMBER",
+            "TYPE_FIELD_NUMBER",
+            "OPERATION_FIELD_NUMBER",
+            "VALUE_FIELD_NUMBER",
+            "unknownFields",
+            "defaultInstanceForType",
+            "bitField0_",
+            "bitField1_",
+            "bitField2_"
+    );
 
     public HubEventAvro mapToAvro(HubEventProto event) {
         Instant instant = Instant.ofEpochSecond(
@@ -112,20 +128,46 @@ public class HubEventMapper {
             log.debug("Could not extract value from 'value_' field: {}", e.getMessage());
         }
 
-        // Способ 3: Поиск любого поля типа int, которое содержит значение
+        // Способ 3: Поиск поля value (не служебного)
+        try {
+            Field valueField = ScenarioConditionProto.class.getDeclaredField("value");
+            valueField.setAccessible(true);
+            Object fieldValue = valueField.get(proto);
+            if (fieldValue instanceof Integer) {
+                int extractedValue = (Integer) fieldValue;
+                if (extractedValue != 0) {
+                    log.debug("Value extracted via reflection from 'value': {}", extractedValue);
+                    return extractedValue;
+                }
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            log.debug("Could not extract value from 'value' field: {}", e.getMessage());
+        }
+
+        // Способ 4: Поиск любого подходящего int-поля (исключая служебные)
         try {
             for (Field field : ScenarioConditionProto.class.getDeclaredFields()) {
+                // Пропускаем служебные поля Protobuf
+                if (PROTOBUF_INTERNAL_FIELDS.contains(field.getName())) {
+                    continue;
+                }
+                // Пропускаем поля, которые явно не value
+                if (field.getName().contains("FieldNumber") ||
+                        field.getName().contains("bitField") ||
+                        field.getName().equals("sensorId_") ||
+                        field.getName().equals("type_") ||
+                        field.getName().equals("operation_")) {
+                    continue;
+                }
+
                 if (field.getType() == int.class || field.getType() == Integer.class) {
                     field.setAccessible(true);
                     Object fieldValue = field.get(proto);
                     if (fieldValue instanceof Integer) {
                         int extractedValue = (Integer) fieldValue;
-                        // Исключаем служебные поля Protobuf
-                        if (extractedValue != 0
-                                && !field.getName().equals("memoizedHashCode")
-                                && !field.getName().contains("bitField")
-                                && !field.getName().equals("memoizedSerializedSize")) {
-                            log.warn("Value extracted via fallback reflection from field '{}': {}",
+                        // Игнорируем 0, так как это может быть значение по умолчанию
+                        if (extractedValue != 0) {
+                            log.debug("Value extracted via fallback reflection from field '{}': {}",
                                     field.getName(), extractedValue);
                             return extractedValue;
                         }
