@@ -46,5 +46,7 @@ kafka:
 
 logging:
   level:
+    io.grpc: DEBUG
+    net.devh: DEBUG
     ru.yandex.practicum: DEBUG
     org.springframework.boot.autoconfigure: ERROR

@@ -107,44 +107,104 @@ public class SnapshotProcessor {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
 
+            ActionTypeProto actionType;
             try {
-                ActionTypeProto actionType = ActionTypeProto.valueOf(action.getType());
+                actionType = ActionTypeProto.valueOf(action.getType());
+            } catch (IllegalArgumentException e) {
+                log.error("Неизвестный тип действия: {}", action.getType());
+                continue;
+            }
 
-                DeviceActionRequest request = DeviceActionRequest.newBuilder()
-                        .setHubId(scenario.getHubId())
-                        .setScenarioName(scenario.getName())
-                        .setAction(DeviceActionProto.newBuilder()
-                                .setSensorId(sensor.getId())
-                                .setType(actionType)
-                                .setValue(action.getValue() != null ? action.getValue() : 0)
-                                .build())
-                        .setTimestamp(Timestamp.newBuilder()
-                                .setSeconds(Instant.now().getEpochSecond())
-                                .setNanos(Instant.now().getNano())
-                                .build())
-                        .build();
+            DeviceActionRequest request = DeviceActionRequest.newBuilder()
+                    .setHubId(scenario.getHubId())
+                    .setScenarioName(scenario.getName())
+                    .setAction(DeviceActionProto.newBuilder()
+                            .setSensorId(sensor.getId())
+                            .setType(actionType)
+                            .setValue(action.getValue() != null ? action.getValue() : 0)
+                            .build())
+                    .setTimestamp(Timestamp.newBuilder()
+                            .setSeconds(Instant.now().getEpochSecond())
+                            .setNanos(Instant.now().getNano())
+                            .build())
+                    .build();
 
-                log.debug("Отправка запроса в hub-router: {}", request);
+            log.debug("Отправка запроса в hub-router: {}", request);
 
-                hubRouterClient.handleDeviceAction(request);
+            boolean sent = false;
+            int maxRetries = 3;
+            int retryCount = 0;
+            long retryDelayMs = 1000;
 
-                log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
-                        sensor.getId(), action.getType(), action.getValue());
+            while (!sent && retryCount < maxRetries) {
+                try {
+                    log.debug("Попытка {} отправки действия для датчика {}", retryCount + 1, sensor.getId());
 
-            } catch (io.grpc.StatusRuntimeException e) {
-                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED) {
-                    log.info("Hub-router не реализует метод (тестовый режим). Действие считается отправленным: sensorId={}", sensor.getId());
-                } else if (e.getStatus().getCode() == io.grpc.Status.Code.UNAVAILABLE) {
-                    log.warn("Hub-router недоступен. Действие считается отправленным: sensorId={}", sensor.getId());
-                } else {
-                    log.error("Ошибка gRPC при отправке действия в hub-router: status={}, sensorId={}",
-                            e.getStatus().getCode(), sensor.getId(), e);
-                    throw new RuntimeException("Ошибка отправки действия в hub-router", e);
+                    hubRouterClient.handleDeviceAction(request);
+
+                    log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
+                            sensor.getId(), action.getType(), action.getValue());
+                    sent = true;
+
+                } catch (io.grpc.StatusRuntimeException e) {
+                    io.grpc.Status.Code statusCode = e.getStatus().getCode();
+                    String description = e.getStatus().getDescription();
+
+                    log.warn("gRPC ошибка при отправке действия: status={}, description={}, sensorId={}",
+                            statusCode, description, sensor.getId());
+
+                    if (statusCode == io.grpc.Status.Code.UNAVAILABLE) {
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            log.info("Hub-router недоступен, попытка {}/{} через {} мс",
+                                    retryCount + 1, maxRetries, retryDelayMs);
+                            try {
+                                Thread.sleep(retryDelayMs);
+                                retryDelayMs *= 2; // Увеличиваем задержку для следующей попытки
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                log.error("Ожидание прервано");
+                                throw new RuntimeException("Прервано ожидание hub-router", ie);
+                            }
+                        } else {
+                            log.error("Не удалось отправить действие после {} попыток", maxRetries);
+                            throw new RuntimeException(
+                                    String.format("Hub-router недоступен после %d попыток", maxRetries), e);
+                        }
+                    } else if (statusCode == io.grpc.Status.Code.UNIMPLEMENTED) {
+                        log.info("Метод Hub-router не реализован (тестовый режим). Действие считается отправленным: sensorId={}",
+                                sensor.getId());
+                        sent = true;
+                    } else if (statusCode == io.grpc.Status.Code.DEADLINE_EXCEEDED) {
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            log.warn("Таймаут соединения, попытка {}/{}", retryCount + 1, maxRetries);
+                            try {
+                                Thread.sleep(retryDelayMs);
+                                retryDelayMs *= 2;
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                throw new RuntimeException("Прервано ожидание", ie);
+                            }
+                        } else {
+                            log.error("Таймаут соединения после {} попыток", maxRetries);
+                            throw new RuntimeException("Таймаут соединения с hub-router", e);
+                        }
+                    } else {
+                        log.error("Критическая gRPC ошибка: status={}, sensorId={}", statusCode, sensor.getId());
+                        throw new RuntimeException("Критическая ошибка gRPC: " + statusCode, e);
+                    }
+                } catch (Exception e) {
+                    log.error("Неожиданная ошибка при отправке действия: sensorId={}, error={}",
+                            sensor.getId(), e.getMessage(), e);
+                    throw new RuntimeException("Неожиданная ошибка при отправке действия", e);
                 }
-            } catch (Exception e) {
-                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}",
-                        sensor.getId(), e.getMessage(), e);
-                throw new RuntimeException("Неожиданная ошибка при отправке действия", e);
+            }
+
+            if (!sent) {
+                throw new RuntimeException(
+                        String.format("Не удалось отправить действие для датчика %s после %d попыток",
+                                sensor.getId(), maxRetries));
             }
         }
     }
