@@ -62,12 +62,14 @@ public class HubEventMapper {
     }
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
-        Object value = proto.getValue();
+        // Получаем значение из proto
+        int intValue = proto.getValue();
+        Object value = intValue;
         ConditionTypeProto type = proto.getType();
 
         // Для SWITCH и MOTION конвертируем int в boolean
         if (type == ConditionTypeProto.SWITCH || type == ConditionTypeProto.MOTION) {
-            value = (proto.getValue() != 0);
+            value = (intValue != 0);
         }
 
         return ScenarioConditionAvro.newBuilder()
