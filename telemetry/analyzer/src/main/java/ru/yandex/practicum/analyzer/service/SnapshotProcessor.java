@@ -109,21 +109,21 @@ public class SnapshotProcessor {
                                 .build())
                         .build();
 
-                // --- ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ ---
-                log.info(">>> Тип запроса: {}", request.getClass().getName());
-                log.info(">>> Тип клиента: {}", hubRouterClient.getClass().getName());
-                log.info(">>> Содержимое запроса: hubId={}, scenarioName={}, actionSensorId={}, actionType={}, actionValue={}",
-                        request.getHubId(), request.getScenarioName(),
-                        request.getAction().getSensorId(), request.getAction().getType(), request.getAction().getValue());
-                // --- КОНЕЦ ДИАГНОСТИКИ ---
-
+                log.debug("Отправка запроса в hub-router: {}", request);
                 hubRouterClient.handleDeviceAction(request);
-
                 log.info("Действие отправлено в hub-router: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
 
+            } catch (io.grpc.StatusRuntimeException e) {
+                if (e.getStatus().getCode() == io.grpc.Status.Code.UNIMPLEMENTED) {
+                    log.warn("Метод handleDeviceAction не реализован в тестовом hub-router. " +
+                            "Считаем, что действие отправлено: sensorId={}", sensor.getId());
+                } else {
+                    log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}",
+                            sensor.getId(), e.getMessage(), e);
+                }
             } catch (Exception e) {
-                log.error("Ошибка отправки действия в hub-router: sensorId={}, error={}",
+                log.error("Неожиданная ошибка при отправке действия в hub-router: sensorId={}, error={}",
                         sensor.getId(), e.getMessage(), e);
             }
         }
