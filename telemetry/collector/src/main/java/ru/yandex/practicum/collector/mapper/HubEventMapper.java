@@ -62,6 +62,7 @@ public class HubEventMapper {
     }
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
+        // Получаем значение из proto
         int intValue = proto.getValue();
         Object value = intValue;
         ConditionTypeProto type = proto.getType();
