@@ -1,12 +1,14 @@
 package ru.yandex.practicum.collector.mapper;
 
-import com.google.protobuf.Descriptors;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import ru.yandex.practicum.grpc.telemetry.event.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.Instant;
 
 @Slf4j
@@ -88,7 +90,7 @@ public class HubEventMapper {
     /**
      * Извлекает значение value из ScenarioConditionProto.
      * Для MOTION (тег 4) - через getValue()
-     * Для остальных (тег 5) - через рефлексию к полю с тегом 5
+     * Для остальных (тег 5) - через ручной парсинг байтов сообщения
      */
     private int extractValue(ScenarioConditionProto proto, ConditionTypeProto type) {
         // Для MOTION (тег 4) - работает стандартный метод
@@ -98,26 +100,44 @@ public class HubEventMapper {
             return value;
         }
 
-        // Для остальных типов - извлекаем значение из поля с тегом 5
+        // Для остальных типов - ручной парсинг байтов сообщения
         try {
-            // Получаем дескриптор поля с тегом 5
-            Descriptors.FieldDescriptor fieldDescriptor =
-                    ScenarioConditionProto.getDescriptor().findFieldByNumber(5);
-
-            if (fieldDescriptor != null) {
-                Object fieldValue = proto.getField(fieldDescriptor);
-                if (fieldValue instanceof Integer) {
-                    int extractedValue = (Integer) fieldValue;
-                    log.debug("Value for {} extracted via field descriptor (tag 5): {}", type, extractedValue);
-                    return extractedValue;
-                }
+            byte[] bytes = proto.toByteArray();
+            int parsedValue = parseValueFromTag5(bytes);
+            if (parsedValue != 0) {
+                log.debug("Value for {} extracted via manual parsing (tag 5): {}", type, parsedValue);
+                return parsedValue;
             }
-        } catch (Exception e) {
-            log.warn("Failed to extract value via field descriptor: {}", e.getMessage());
+        } catch (IOException e) {
+            log.warn("Failed to manually parse value from tag 5: {}", e.getMessage());
         }
 
-        // Fallback: пробуем другие способы
         log.warn("Could not extract value for condition of type {}. Returning 0.", type);
+        return 0;
+    }
+
+    /**
+     * Парсит байты Protobuf сообщения и извлекает значение поля с тегом 5.
+     * Формат Protobuf: [tag] [type] [value]
+     * Тег кодируется как (field_number << 3) | wire_type
+     * wire_type для int32 = 0
+     */
+    private int parseValueFromTag5(byte[] bytes) throws IOException {
+        CodedInputStream input = CodedInputStream.newInstance(bytes);
+
+        while (!input.isAtEnd()) {
+            int tag = input.readTag();
+            int fieldNumber = tag >>> 3;
+
+            if (fieldNumber == 5) {
+                // Читаем int32 значение
+                return input.readInt32();
+            } else {
+                // Пропускаем другие поля
+                input.skipField(tag);
+            }
+        }
+
         return 0;
     }
 
