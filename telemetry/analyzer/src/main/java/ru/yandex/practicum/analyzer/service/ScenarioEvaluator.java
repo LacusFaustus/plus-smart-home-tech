@@ -1,6 +1,7 @@
 package ru.yandex.practicum.analyzer.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.avro.util.Utf8;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.analyzer.entity.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
@@ -132,11 +133,40 @@ public class ScenarioEvaluator {
 
     private SensorStateAvro getSensorState(SensorsSnapshotAvro snapshot, String sensorId) {
         Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
-        if (states == null) {
+        if (states == null || states.isEmpty()) {
+            log.debug("Снапшот для хаба {} не содержит состояний датчиков", snapshot.getHubId());
             return null;
         }
 
-        // Прямой поиск по ключу-строке
-        return states.get(sensorId);
+        // Логируем все ключи для отладки
+        log.debug("Ключи в снапшоте: {}", states.keySet());
+        log.debug("Ищем датчик с ID: {}", sensorId);
+
+        // Прямой поиск по строке (Avro использует Utf8)
+        SensorStateAvro state = states.get(sensorId);
+        if (state != null) {
+            log.debug("Датчик {} найден по прямому ключу", sensorId);
+            return state;
+        }
+
+        // Поиск через Utf8
+        Utf8 utf8Key = new Utf8(sensorId);
+        state = states.get(utf8Key);
+        if (state != null) {
+            log.debug("Датчик {} найден через Utf8", sensorId);
+            return state;
+        }
+
+        // Поиск перебором с преобразованием ключей в строки
+        for (Map.Entry<CharSequence, SensorStateAvro> entry : states.entrySet()) {
+            String keyStr = entry.getKey().toString();
+            if (keyStr.equals(sensorId)) {
+                log.debug("Датчик {} найден перебором с toString()", sensorId);
+                return entry.getValue();
+            }
+        }
+
+        log.debug("Датчик {} не найден в снапшоте", sensorId);
+        return null;
     }
 }

@@ -39,8 +39,17 @@ public class AggregationStarter {
                 ConsumerRecords<String, SpecificRecordBase> records =
                         consumer.poll(Duration.ofSeconds(1));
 
+                if (records.isEmpty()) {
+                    continue;
+                }
+
                 for (ConsumerRecord<String, SpecificRecordBase> record : records) {
-                    processRecord(record);
+                    try {
+                        processRecord(record);
+                    } catch (Exception e) {
+                        log.error("Ошибка обработки записи: {}", e.getMessage(), e);
+                        return;
+                    }
                 }
 
                 consumer.commitSync();
@@ -86,6 +95,7 @@ public class AggregationStarter {
             SensorsSnapshotAvro existingSnapshot = snapshots.get(hubId);
 
             if (existingSnapshot == null) {
+                // Используем HashMap с String ключами
                 Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
 
@@ -96,7 +106,7 @@ public class AggregationStarter {
                         .build();
 
                 snapshots.put(hubId, snapshotToSend);
-                log.info("Создан новый снапшот для хаба {}", hubId);
+                log.info("Создан новый снапшот для хаба {} с датчиком {}", hubId, sensorId);
 
                 return Optional.of(snapshotToSend);
             }
@@ -111,7 +121,11 @@ public class AggregationStarter {
                 return Optional.empty();
             }
 
-            Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
+            // Создаем новую мапу с String ключами
+            Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>();
+            for (Map.Entry<CharSequence, SensorStateAvro> entry : existingSnapshot.getSensorsState().entrySet()) {
+                updatedStates.put(entry.getKey().toString(), entry.getValue());
+            }
             updatedStates.put(sensorId, newState);
 
             snapshotToSend = SensorsSnapshotAvro.newBuilder()
@@ -138,7 +152,7 @@ public class AggregationStarter {
 
         try {
             ProducerRecord<String, SpecificRecordBase> record =
-                    new ProducerRecord<>(snapshotTopic, snapshot);
+                    new ProducerRecord<>(snapshotTopic, snapshot.getHubId().toString(), snapshot);
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {
                     log.error("Ошибка отправки снапшота в Kafka: {}", exception.getMessage(), exception);
