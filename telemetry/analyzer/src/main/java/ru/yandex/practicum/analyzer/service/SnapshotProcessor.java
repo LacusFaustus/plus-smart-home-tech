@@ -42,14 +42,6 @@ public class SnapshotProcessor {
     public void init() {
         log.info("SnapshotProcessor initialized with gRPC client: {}",
                 hubRouterClient != null ? "present" : "NULL");
-
-        // Проверяем, доступен ли Hub Router
-        try {
-            // Пытаемся отправить тестовое сообщение (можно использовать любой метод)
-            log.info("Testing connection to Hub Router...");
-        } catch (Exception e) {
-            log.warn("Hub Router may not be available: {}", e.getMessage());
-        }
     }
 
     public void start() {
@@ -173,29 +165,17 @@ public class SnapshotProcessor {
             log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
                     scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
-            // ВСЕГДА пытаемся отправить, даже в CI
-            // В CI окружении просто логируем, что отправили, и считаем успехом
-            if (isCIEnvironment()) {
-                log.info("✅ CI MODE: Action sent successfully (mock) - would send to real Hub Router");
-                continue;
-            }
-
-            // Реальная отправка только не в CI
+            // ВСЕГДА отправляем реальный gRPC запрос, даже в CI
             try {
                 hubRouterClient.handleDeviceAction(request);
                 log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
             } catch (Exception e) {
+                // Логируем ошибку, но не прерываем выполнение
                 log.error("Failed to send action: sensorId={}, error={}",
                         sensor.getId(), e.getMessage());
             }
         }
-    }
-
-    private boolean isCIEnvironment() {
-        return System.getenv("CI") != null ||
-                System.getenv("GITHUB_ACTIONS") != null ||
-                System.getProperty("CI") != null;
     }
 
     @PreDestroy
