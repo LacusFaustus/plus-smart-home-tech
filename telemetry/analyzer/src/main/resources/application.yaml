@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: analyzer
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smarthome
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+grpc:
+  client:
+    hub-router:
+      address: static://localhost:59090
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+
+kafka:
+  bootstrap-servers: localhost:9092
+  consumer:
+    hub-events:
+      group-id: analyzer-hub-events-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+    snapshots:
+      group-id: analyzer-snapshots-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+  topics:
+    hub-events: telemetry.hubs.v1
+    snapshots: telemetry.snapshots.v1
+
+logging:
+  level:
+    ru.yandex.practicum: DEBUG

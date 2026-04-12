@@ -43,7 +43,6 @@ public class AggregationStarter {
                     processRecord(record);
                 }
 
-                // Коммитим только после успешной обработки всех записей
                 consumer.commitSync();
             }
         } catch (WakeupException e) {
@@ -52,7 +51,6 @@ public class AggregationStarter {
             log.error("Ошибка обработки", e);
         } finally {
             try {
-                // Финальный коммит перед закрытием
                 consumer.commitSync();
             } catch (Exception e) {
                 log.error("Ошибка при финальном коммите", e);
@@ -77,20 +75,17 @@ public class AggregationStarter {
         String hubId = event.getHubId().toString();
         String sensorId = event.getId().toString();
 
-        // 1. Создаем новое состояние датчика из события
         SensorStateAvro newState = SensorStateAvro.newBuilder()
                 .setTimestamp(event.getTimestamp())
                 .setData(event.getPayload())
                 .build();
 
-        // 2. Атомарно обновляем мапу снапшотов
         SensorsSnapshotAvro snapshotToSend;
 
         synchronized (snapshots) {
             SensorsSnapshotAvro existingSnapshot = snapshots.get(hubId);
 
             if (existingSnapshot == null) {
-                // Создаем новый снапшот
                 Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
 
@@ -106,10 +101,8 @@ public class AggregationStarter {
                 return Optional.of(snapshotToSend);
             }
 
-            // Проверяем, есть ли уже состояние для этого датчика
             SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
 
-            // Сравниваем ТОЛЬКО данные (payload), игнорируя timestamp
             Object oldData = oldState != null ? oldState.getData() : null;
             Object newData = newState.getData();
 
@@ -118,7 +111,6 @@ public class AggregationStarter {
                 return Optional.empty();
             }
 
-            // Данные изменились или датчик новый - создаем обновленный снапшот
             Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
             updatedStates.put(sensorId, newState);
 
