@@ -112,6 +112,9 @@ public class HubEventMapper {
             return value;
         }
 
+        // Отладочный вывод всех полей класса
+        debugPrintAllFields(proto);
+
         // Способ 2: Прямой доступ к полю value_ через рефлексию для тега 5
         try {
             Field valueField = ScenarioConditionProto.class.getDeclaredField("value_");
@@ -128,7 +131,7 @@ public class HubEventMapper {
             log.debug("Could not extract value from 'value_' field: {}", e.getMessage());
         }
 
-        // Способ 3: Поиск поля value (не служебного)
+        // Способ 3: Поиск поля value
         try {
             Field valueField = ScenarioConditionProto.class.getDeclaredField("value");
             valueField.setAccessible(true);
@@ -181,6 +184,23 @@ public class HubEventMapper {
         // Если ничего не нашли, возвращаем 0
         log.warn("Could not extract value for condition of type {}. Returning 0.", proto.getType());
         return 0;
+    }
+
+    /**
+     * Отладочный метод для вывода всех полей класса и их значений.
+     */
+    private void debugPrintAllFields(ScenarioConditionProto proto) {
+        log.info("=== Debug: All fields of ScenarioConditionProto ===");
+        for (Field field : ScenarioConditionProto.class.getDeclaredFields()) {
+            field.setAccessible(true);
+            try {
+                Object fieldValue = field.get(proto);
+                log.info("Field: {} (type: {}) = {}", field.getName(), field.getType().getSimpleName(), fieldValue);
+            } catch (IllegalAccessException e) {
+                log.info("Field: {} (type: {}) = <inaccessible>", field.getName(), field.getType().getSimpleName());
+            }
+        }
+        log.info("=== End debug ===");
     }
 
     private DeviceActionAvro mapAction(DeviceActionProto proto) {
