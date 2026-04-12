@@ -1,11 +1,13 @@
 package ru.yandex.practicum.collector.mapper;
 
 import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import ru.yandex.practicum.grpc.telemetry.event.*;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
 import java.time.Instant;
 
+@Slf4j
 @UtilityClass
 public class HubEventMapper {
 
@@ -62,10 +64,20 @@ public class HubEventMapper {
     }
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
-        // Получаем значение из proto
-        int intValue = proto.getValue();
-        Object value = intValue;
         ConditionTypeProto type = proto.getType();
+        int intValue;
+
+        // Для MOTION клиент hub-router использует тег 4, который не соответствует нашей схеме
+        // Поэтому извлекаем значение через рефлексию из поля value_
+        if (type == ConditionTypeProto.MOTION) {
+            intValue = extractValueForMotion(proto);
+        } else {
+            // Для остальных типов (LUMINOSITY, TEMPERATURE, SWITCH, CO2LEVEL, HUMIDITY)
+            // значение приходит с тегом 5, который соответствует нашей схеме
+            intValue = proto.getValue();
+        }
+
+        Object value = intValue;
 
         // Для SWITCH и MOTION конвертируем int в boolean
         if (type == ConditionTypeProto.SWITCH || type == ConditionTypeProto.MOTION) {
@@ -78,6 +90,26 @@ public class HubEventMapper {
                 .setOperation(mapConditionOperation(proto.getOperation()))
                 .setValue(value)
                 .build();
+    }
+
+    /**
+     * Извлекает значение для MOTION через рефлексию.
+     * Клиент hub-router отправляет MOTION с тегом 4, который в сгенерированном классе
+     * сохраняется в поле value_ (так как это oneof поле).
+     */
+    private int extractValueForMotion(ScenarioConditionProto proto) {
+        try {
+            java.lang.reflect.Field field = proto.getClass().getDeclaredField("value_");
+            field.setAccessible(true);
+            Object fieldValue = field.get(proto);
+            if (fieldValue instanceof Integer) {
+                return (int) fieldValue;
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            log.warn("Не удалось извлечь value для MOTION через рефлексию: {}", e.getMessage());
+        }
+        // Если не удалось извлечь, возвращаем 0 (значение по умолчанию)
+        return 0;
     }
 
     private DeviceActionAvro mapAction(DeviceActionProto proto) {
