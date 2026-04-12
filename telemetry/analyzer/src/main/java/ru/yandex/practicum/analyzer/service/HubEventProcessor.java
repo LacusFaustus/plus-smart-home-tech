@@ -87,17 +87,18 @@ public class HubEventProcessor implements Runnable {
     }
 
     private void handleDeviceRemoved(String hubId, DeviceRemovedEventAvro event) {
-        sensorRepository.deleteById(event.getId().toString());
-        log.info("Удалён датчик: id={}, hubId={}", event.getId(), hubId);
+        String sensorId = event.getId().toString();
+        sensorRepository.deleteById(sensorId);
+        log.info("Удалён датчик: id={}, hubId={}", sensorId, hubId);
     }
 
     private void handleScenarioAdded(String hubId, ScenarioAddedEventAvro event) {
         String scenarioName = event.getName().toString();
+        log.info("Добавление/обновление сценария: hubId={}, name={}", hubId, scenarioName);
 
-        // Удаляем старый сценарий, если существует
         scenarioRepository.findByHubIdAndName(hubId, scenarioName)
-                .ifPresent(scenario -> {
-                    scenarioRepository.delete(scenario);
+                .ifPresent(existingScenario -> {
+                    scenarioRepository.delete(existingScenario);
                     log.info("Удалён существующий сценарий: hubId={}, name={}", hubId, scenarioName);
                 });
 
@@ -113,13 +114,12 @@ public class HubEventProcessor implements Runnable {
         for (ScenarioConditionAvro conditionAvro : event.getConditions()) {
             String sensorId = conditionAvro.getSensorId().toString();
             Sensor sensor = sensorRepository.findById(sensorId)
-                    .orElseGet(() -> sensorRepository.save(
-                            Sensor.builder().id(sensorId).hubId(hubId).build()
-                    ));
+                    .orElseGet(() -> {
+                        log.info("Датчик с id={} не найден, создаем новый", sensorId);
+                        return sensorRepository.save(Sensor.builder().id(sensorId).hubId(hubId).build());
+                    });
 
             Condition condition = AvroToEntityMapper.mapToCondition(conditionAvro);
-            condition = conditionRepository.save(condition);
-
             scenario.getConditions().put(sensor, condition);
         }
 
@@ -127,18 +127,17 @@ public class HubEventProcessor implements Runnable {
         for (DeviceActionAvro actionAvro : event.getActions()) {
             String sensorId = actionAvro.getSensorId().toString();
             Sensor sensor = sensorRepository.findById(sensorId)
-                    .orElseGet(() -> sensorRepository.save(
-                            Sensor.builder().id(sensorId).hubId(hubId).build()
-                    ));
+                    .orElseGet(() -> {
+                        log.info("Датчик с id={} не найден, создаем новый", sensorId);
+                        return sensorRepository.save(Sensor.builder().id(sensorId).hubId(hubId).build());
+                    });
 
             Action action = AvroToEntityMapper.mapToAction(actionAvro);
-            action = actionRepository.save(action);
-
             scenario.getActions().put(sensor, action);
         }
 
         scenarioRepository.save(scenario);
-        log.info("Добавлен сценарий: hubId={}, name={}, conditions={}, actions={}",
+        log.info("Сценарий сохранен: hubId={}, name={}, conditions={}, actions={}",
                 hubId, scenarioName, scenario.getConditions().size(), scenario.getActions().size());
     }
 
