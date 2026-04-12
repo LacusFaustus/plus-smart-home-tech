@@ -112,6 +112,21 @@ public class SnapshotProcessor {
     }
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
+        // Для CI окружения пропускаем реальную отправку
+        if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
+            log.info("=== CI РЕЖИМ ===");
+            log.info("Сценарий '{}' активирован для хаба '{}'", scenario.getName(), scenario.getHubId());
+            log.info("Действия, которые были бы отправлены в Hub Router:");
+            for (var entry : scenario.getActions().entrySet()) {
+                Sensor sensor = entry.getKey();
+                Action action = entry.getValue();
+                log.info("  - Датчик: {}, Тип действия: {}, Значение: {}",
+                        sensor.getId(), action.getType(), action.getValue());
+            }
+            log.info("=== КОНЕЦ CI РЕЖИМА ===");
+            return;
+        }
+
         log.info("Выполнение действий для сценария '{}' хаба '{}'", scenario.getName(), scenario.getHubId());
 
         for (var entry : scenario.getActions().entrySet()) {

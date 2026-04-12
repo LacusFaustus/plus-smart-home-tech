@@ -1,4 +1,11 @@
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
+---
+spring:
+  config:
+    activate:
+      on-profile: ci
   application:
     name: analyzer
   datasource:
@@ -26,6 +33,7 @@ grpc:
       enableKeepAlive: true
       keepAliveWithoutCalls: true
       negotiationType: plaintext
+      maxInboundMessageSize: 10485760
 
 kafka:
   bootstrap-servers: localhost:9092
