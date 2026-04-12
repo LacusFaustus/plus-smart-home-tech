@@ -56,8 +56,8 @@ public class KafkaConfig {
     @Getter
     @Setter
     public static class ConsumerConfigProperties {
-        private HubEventConsumer hubEvents;
-        private SnapshotConsumer snapshots;
+        private HubEventConsumer hubEvents = new HubEventConsumer();
+        private SnapshotConsumer snapshots = new SnapshotConsumer();
     }
 
     @Getter
