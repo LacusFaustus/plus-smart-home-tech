@@ -52,12 +52,14 @@ public class ScenarioEvaluator {
                 if (data instanceof MotionSensorAvro motion) {
                     yield motion.getMotion() ? 1 : 0;
                 }
+                log.warn("Данные не являются MotionSensorAvro: {}", data.getClass().getSimpleName());
                 yield null;
             }
             case "SWITCH" -> {
                 if (data instanceof SwitchSensorAvro switchSensor) {
                     yield switchSensor.getState() ? 1 : 0;
                 }
+                log.warn("Данные не являются SwitchSensorAvro: {}", data.getClass().getSimpleName());
                 yield null;
             }
             case "TEMPERATURE" -> {
@@ -66,24 +68,28 @@ public class ScenarioEvaluator {
                 } else if (data instanceof TemperatureSensorAvro temp) {
                     yield temp.getTemperatureC();
                 }
+                log.warn("Данные не содержат температуру: {}", data.getClass().getSimpleName());
                 yield null;
             }
             case "LUMINOSITY" -> {
                 if (data instanceof LightSensorAvro light) {
                     yield light.getLuminosity();
                 }
+                log.warn("Данные не являются LightSensorAvro: {}", data.getClass().getSimpleName());
                 yield null;
             }
             case "CO2LEVEL" -> {
                 if (data instanceof ClimateSensorAvro climate) {
                     yield climate.getCo2Level();
                 }
+                log.warn("Данные не содержат CO2: {}", data.getClass().getSimpleName());
                 yield null;
             }
             case "HUMIDITY" -> {
                 if (data instanceof ClimateSensorAvro climate) {
                     yield climate.getHumidity();
                 }
+                log.warn("Данные не содержат влажность: {}", data.getClass().getSimpleName());
                 yield null;
             }
             default -> {
@@ -96,21 +102,31 @@ public class ScenarioEvaluator {
     public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
         Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
 
+        log.info("Проверка сценария '{}' для хаба {} (условий: {})",
+                scenario.getName(), snapshot.getHubId(), scenario.getConditions().size());
+
         for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
             Sensor sensor = entry.getKey();
             Condition condition = entry.getValue();
 
             SensorStateAvro state = states.get(sensor.getId());
             if (state == null) {
-                log.debug("Датчик {} не найден в снапшоте", sensor.getId());
+                log.info("  ❌ Датчик {} не найден в снапшоте", sensor.getId());
                 return false;
             }
 
             if (!evaluateCondition(condition, state)) {
+                log.info("  ❌ Условие не выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
+                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
                 return false;
+            } else {
+                log.info("  ✅ Условие выполнено: датчик={}, тип={}, операция={}, ожидаемое={}",
+                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
             }
         }
 
+        log.info("✅ Сценарий '{}' активирован! Выполняется {} действий",
+                scenario.getName(), scenario.getActions().size());
         return true;
     }
 }
