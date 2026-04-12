@@ -87,20 +87,15 @@ public class HubEventMapper {
                 .build();
     }
 
-    /**
-     * Извлекает значение value из ScenarioConditionProto.
-     * Для MOTION (тег 4) - через getValue()
-     * Для остальных (тег 5) - через ручной парсинг байтов сообщения
-     */
     private int extractValue(ScenarioConditionProto proto, ConditionTypeProto type) {
-        // Для MOTION (тег 4) - работает стандартный метод
-        if (type == ConditionTypeProto.MOTION) {
+        // Для MOTION и SWITCH (тег 4) - работает стандартный метод
+        if (type == ConditionTypeProto.MOTION || type == ConditionTypeProto.SWITCH) {
             int value = proto.getValue();
-            log.debug("MOTION value extracted via getValue(): {}", value);
+            log.debug("{} value extracted via getValue(): {}", type, value);
             return value;
         }
 
-        // Для остальных типов - ручной парсинг байтов сообщения
+        // Для остальных типов (LUMINOSITY, TEMPERATURE) - ручной парсинг тега 5
         try {
             byte[] bytes = proto.toByteArray();
             int parsedValue = parseValueFromTag5(bytes);
