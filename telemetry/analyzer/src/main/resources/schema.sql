@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS scenario_actions (
     PRIMARY KEY (scenario_id, sensor_id, action_id)
     );
 
+-- Удаляем старую функцию, если существует
+DROP FUNCTION IF EXISTS check_hub_id() CASCADE;
+
 -- Функция для проверки соответствия hub_id у сценария и датчика
 CREATE OR REPLACE FUNCTION check_hub_id()
 RETURNS TRIGGER AS $$

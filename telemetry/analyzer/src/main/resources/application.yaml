@@ -8,16 +8,16 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
+    defer-datasource-initialization: false
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
+      mode: never
 
 grpc:
   client:
@@ -47,3 +47,4 @@ kafka:
 logging:
   level:
     ru.yandex.practicum: DEBUG
+    org.springframework.boot.autoconfigure: ERROR
