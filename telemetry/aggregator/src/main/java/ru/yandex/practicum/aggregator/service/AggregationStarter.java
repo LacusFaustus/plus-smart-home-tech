@@ -15,9 +15,8 @@ import ru.yandex.practicum.aggregator.config.KafkaConfig;
 import ru.yandex.practicum.kafka.telemetry.event.*;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -27,7 +26,7 @@ public class AggregationStarter {
     private final Producer<String, SpecificRecordBase> producer;
     private final KafkaConfig kafkaConfig;
 
-    private final Map<String, SensorsSnapshotAvro> snapshots = new HashMap<>();
+    private final Map<String, SensorsSnapshotAvro> snapshots = new ConcurrentHashMap<>();
     private volatile boolean running = true;
 
     public void start() {
@@ -44,6 +43,7 @@ public class AggregationStarter {
                     processRecord(record);
                 }
 
+                // Коммитим только после успешной обработки всех записей
                 consumer.commitSync();
             }
         } catch (WakeupException e) {
@@ -51,8 +51,15 @@ public class AggregationStarter {
         } catch (Exception e) {
             log.error("Ошибка обработки", e);
         } finally {
+            try {
+                // Финальный коммит перед закрытием
+                consumer.commitSync();
+            } catch (Exception e) {
+                log.error("Ошибка при финальном коммите", e);
+            }
             consumer.close();
             producer.close();
+            log.info("Консьюмер и продюсер закрыты");
         }
     }
 
@@ -63,10 +70,10 @@ public class AggregationStarter {
                 event.getHubId().toString(),
                 event.getTimestamp());
 
-        updateSnapshot(event);
+        updateSnapshot(event).ifPresent(this::sendSnapshot);
     }
 
-    private void updateSnapshot(SensorEventAvro event) {
+    private Optional<SensorsSnapshotAvro> updateSnapshot(SensorEventAvro event) {
         String hubId = event.getHubId().toString();
         String sensorId = event.getId().toString();
 
@@ -86,47 +93,68 @@ public class AggregationStarter {
                 // Создаем новый снапшот
                 Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
+
                 snapshotToSend = SensorsSnapshotAvro.newBuilder()
                         .setHubId(hubId)
                         .setTimestamp(event.getTimestamp())
                         .setSensorsState(states)
                         .build();
+
+                snapshots.put(hubId, snapshotToSend);
                 log.info("Создан новый снапшот для хаба {}", hubId);
-            } else {
-                // Создаем копию существующей мапы
-                Map<CharSequence, SensorStateAvro> updatedStates =
-                        new HashMap<>(existingSnapshot.getSensorsState());
-                updatedStates.put(sensorId, newState);
 
-                snapshotToSend = SensorsSnapshotAvro.newBuilder()
-                        .setHubId(hubId)  // Важно: явно устанавливаем hubId как String
-                        .setTimestamp(event.getTimestamp())
-                        .setSensorsState(updatedStates)
-                        .build();
-
-                SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
-                if (oldState == null || !oldState.equals(newState)) {
-                    log.info("Снапшот обновлен для хаба {}", hubId);
-                } else {
-                    log.debug("Данные датчика {} не изменились, но снапшот отправлен", sensorId);
-                }
+                return Optional.of(snapshotToSend);
             }
 
-            // Сохраняем обновленный снапшот
-            snapshots.put(hubId, snapshotToSend);
-        }
+            // Проверяем, есть ли уже состояние для этого датчика
+            SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
 
-        // 3. Отправляем снапшот
-        sendSnapshot(snapshotToSend);
+            // Сравниваем ТОЛЬКО данные (payload), игнорируя timestamp
+            Object oldData = oldState != null ? oldState.getData() : null;
+            Object newData = newState.getData();
+
+            if (oldState != null && Objects.equals(oldData, newData)) {
+                log.debug("Данные датчика {} не изменились, снапшот НЕ отправляется", sensorId);
+                return Optional.empty();
+            }
+
+            // Данные изменились или датчик новый - создаем обновленный снапшот
+            Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
+            updatedStates.put(sensorId, newState);
+
+            snapshotToSend = SensorsSnapshotAvro.newBuilder()
+                    .setHubId(hubId)
+                    .setTimestamp(event.getTimestamp())
+                    .setSensorsState(updatedStates)
+                    .build();
+
+            snapshots.put(hubId, snapshotToSend);
+
+            if (oldState == null) {
+                log.info("Добавлен новый датчик {} в снапшот хаба {}", sensorId, hubId);
+            } else {
+                log.info("Обновлены данные датчика {} в снапшоте хаба {}", sensorId, hubId);
+            }
+
+            return Optional.of(snapshotToSend);
+        }
     }
 
     private void sendSnapshot(SensorsSnapshotAvro snapshot) {
         String snapshotTopic = kafkaConfig.getTopics().getSnapshots();
         log.debug("Отправка снапшота для хаба {} в топик {}", snapshot.getHubId(), snapshotTopic);
+
         try {
             ProducerRecord<String, SpecificRecordBase> record =
                     new ProducerRecord<>(snapshotTopic, snapshot);
-            producer.send(record);
+            producer.send(record, (metadata, exception) -> {
+                if (exception != null) {
+                    log.error("Ошибка отправки снапшота в Kafka: {}", exception.getMessage(), exception);
+                } else {
+                    log.debug("Снапшот отправлен в топик {}, партиция {}, оффсет {}",
+                            metadata.topic(), metadata.partition(), metadata.offset());
+                }
+            });
         } catch (Exception e) {
             log.error("Ошибка отправки снапшота: {}", e.getMessage(), e);
         }

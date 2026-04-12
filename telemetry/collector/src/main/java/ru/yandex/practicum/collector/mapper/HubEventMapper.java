@@ -25,7 +25,7 @@ public class HubEventMapper {
 
         return HubEventAvro.newBuilder()
                 .setHubId(event.getHubId())
-                .setTimestamp(instant)  // ← Оставляем Instant
+                .setTimestamp(instant)
                 .setPayload(payload)
                 .build();
     }
@@ -63,16 +63,16 @@ public class HubEventMapper {
 
     private ScenarioConditionAvro mapCondition(ScenarioConditionProto proto) {
         Object value = proto.getValue();
+        ConditionTypeProto type = proto.getType();
 
         // Для SWITCH и MOTION конвертируем int в boolean
-        if (proto.getType() == ConditionTypeProto.SWITCH ||
-                proto.getType() == ConditionTypeProto.MOTION) {
+        if (type == ConditionTypeProto.SWITCH || type == ConditionTypeProto.MOTION) {
             value = (proto.getValue() != 0);
         }
 
         return ScenarioConditionAvro.newBuilder()
                 .setSensorId(proto.getSensorId())
-                .setType(mapConditionType(proto.getType()))
+                .setType(mapConditionType(type))
                 .setOperation(mapConditionOperation(proto.getOperation()))
                 .setValue(value)
                 .build();
