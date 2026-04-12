@@ -165,20 +165,15 @@ public class SnapshotProcessor {
             log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
                     scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
-            // ВСЕГДА пытаемся отправить, даже в CI
+            // Always try to send, even in CI
             try {
                 hubRouterClient.handleDeviceAction(request);
                 log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
                         sensor.getId(), action.getType(), action.getValue());
             } catch (Exception e) {
-                // В CI окружении считаем ошибку успехом (Hub Router не реализует метод)
-                if (System.getenv("CI") != null || System.getenv("GITHUB_ACTIONS") != null) {
-                    log.info("✅ Action considered sent in CI mode (Hub Router mock): sensorId={}, type={}, value={}",
-                            sensor.getId(), action.getType(), action.getValue());
-                } else {
-                    log.error("Failed to send action: sensorId={}, error={}",
-                            sensor.getId(), e.getMessage());
-                }
+                // Log error but don't throw - continue with next action
+                log.error("Failed to send action: sensorId={}, error={}",
+                        sensor.getId(), e.getMessage());
             }
         }
     }
