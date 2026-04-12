@@ -93,9 +93,19 @@ public class SnapshotProcessor {
         for (Scenario scenario : scenarios) {
             log.debug("Проверка сценария: {}", scenario.getName());
 
-            if (scenarioEvaluator.evaluateScenario(scenario, snapshot)) {
-                log.info("Сценарий '{}' активирован для хаба {}", scenario.getName(), hubId);
-                executeActions(scenario, snapshot);
+            try {
+                if (scenarioEvaluator.evaluateScenario(scenario, snapshot)) {
+                    log.info("Сценарий '{}' активирован для хаба {}", scenario.getName(), hubId);
+                    try {
+                        executeActions(scenario, snapshot);
+                    } catch (Exception e) {
+                        log.error("Ошибка при выполнении действий сценария '{}': {}",
+                                scenario.getName(), e.getMessage(), e);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Ошибка при проверке сценария '{}': {}",
+                        scenario.getName(), e.getMessage(), e);
             }
         }
     }
@@ -160,16 +170,14 @@ public class SnapshotProcessor {
                                     retryCount + 1, maxRetries, retryDelayMs);
                             try {
                                 Thread.sleep(retryDelayMs);
-                                retryDelayMs *= 2; // Увеличиваем задержку для следующей попытки
+                                retryDelayMs *= 2;
                             } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
                                 log.error("Ожидание прервано");
-                                throw new RuntimeException("Прервано ожидание hub-router", ie);
+                                return;
                             }
                         } else {
                             log.error("Не удалось отправить действие после {} попыток", maxRetries);
-                            throw new RuntimeException(
-                                    String.format("Hub-router недоступен после %d попыток", maxRetries), e);
                         }
                     } else if (statusCode == io.grpc.Status.Code.UNIMPLEMENTED) {
                         log.info("Метод Hub-router не реализован (тестовый режим). Действие считается отправленным: sensorId={}",
@@ -184,27 +192,25 @@ public class SnapshotProcessor {
                                 retryDelayMs *= 2;
                             } catch (InterruptedException ie) {
                                 Thread.currentThread().interrupt();
-                                throw new RuntimeException("Прервано ожидание", ie);
+                                log.error("Ожидание прервано");
+                                return;
                             }
                         } else {
                             log.error("Таймаут соединения после {} попыток", maxRetries);
-                            throw new RuntimeException("Таймаут соединения с hub-router", e);
                         }
                     } else {
                         log.error("Критическая gRPC ошибка: status={}, sensorId={}", statusCode, sensor.getId());
-                        throw new RuntimeException("Критическая ошибка gRPC: " + statusCode, e);
+                        break;
                     }
                 } catch (Exception e) {
                     log.error("Неожиданная ошибка при отправке действия: sensorId={}, error={}",
                             sensor.getId(), e.getMessage(), e);
-                    throw new RuntimeException("Неожиданная ошибка при отправке действия", e);
+                    break;
                 }
             }
 
             if (!sent) {
-                throw new RuntimeException(
-                        String.format("Не удалось отправить действие для датчика %s после %d попыток",
-                                sensor.getId(), maxRetries));
+                log.warn("Действие для датчика {} не отправлено, переходим к следующему", sensor.getId());
             }
         }
     }
