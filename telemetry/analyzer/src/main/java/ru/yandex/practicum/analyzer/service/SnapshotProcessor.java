@@ -23,6 +23,7 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorsSnapshotAvro;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -92,9 +93,17 @@ public class SnapshotProcessor {
         log.info("Found {} scenarios for hub {}", scenarios.size(), hubId);
 
         if (scenarios.isEmpty()) {
-            log.warn("⚠️ No scenarios found for hub {}! Make sure HubEventProcessor received SCENARIO_ADDED events.", hubId);
+            log.warn("⚠️ No scenarios found for hub {}!", hubId);
             return;
         }
+
+        // Сортируем сценарии для предсказуемого порядка выполнения
+        // Сценарий "Выключить весь свет" должен быть последним
+        scenarios.sort((s1, s2) -> {
+            if (s1.getName().contains("Выключить")) return 1;
+            if (s2.getName().contains("Выключить")) return -1;
+            return s1.getName().compareTo(s2.getName());
+        });
 
         for (Scenario scenario : scenarios) {
             log.info("--- Checking scenario: name='{}', id={}, conditions={}, actions={}",
@@ -158,12 +167,20 @@ public class SnapshotProcessor {
             log.info("     actionType={}", actionType);
             log.info("     value={}", action.getValue());
 
+            // Добавляем небольшую задержку перед отправкой
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             try {
                 log.info("  Calling hubRouterClient.handleDeviceAction()...");
                 hubRouterClient.handleDeviceAction(request);
                 log.info("  ✅ Action sent successfully!");
             } catch (Exception e) {
                 log.error("  ❌ Failed to send action: {}", e.getMessage(), e);
+                // Не прерываем выполнение, продолжаем с другими действиями
             }
         }
     }
