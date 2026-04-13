@@ -29,19 +29,22 @@ public class KafkaConfig {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 
-        // Безопасная проверка на null
-        if (consumer != null && consumer.getHubEvents() != null) {
-            props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getHubEvents().getGroupId());
-            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getHubEvents().isEnableAutoCommit());
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getHubEvents().getAutoOffsetReset());
-            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getHubEvents().getMaxPollRecords());
+        // Безопасное получение конфигурации с проверкой на null
+        HubEventConsumer hubEventConfig = consumer != null ? consumer.getHubEvents() : null;
+
+        if (hubEventConfig != null && hubEventConfig.getGroupId() != null) {
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, hubEventConfig.getGroupId());
         } else {
-            // Значения по умолчанию
             props.put(ConsumerConfig.GROUP_ID_CONFIG, "analyzer-hub-events-group");
-            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);
         }
+
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
+                hubEventConfig != null ? hubEventConfig.isEnableAutoCommit() : false);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                hubEventConfig != null && hubEventConfig.getAutoOffsetReset() != null ?
+                        hubEventConfig.getAutoOffsetReset() : "earliest");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
+                hubEventConfig != null ? hubEventConfig.getMaxPollRecords() : 10);
 
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, HubEventDeserializer.class);
@@ -54,19 +57,22 @@ public class KafkaConfig {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 
-        // Безопасная проверка на null
-        if (consumer != null && consumer.getSnapshots() != null) {
-            props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getSnapshots().getGroupId());
-            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getSnapshots().isEnableAutoCommit());
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getSnapshots().getAutoOffsetReset());
-            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getSnapshots().getMaxPollRecords());
+        // Безопасное получение конфигурации с проверкой на null
+        SnapshotConsumer snapshotConfig = consumer != null ? consumer.getSnapshots() : null;
+
+        if (snapshotConfig != null && snapshotConfig.getGroupId() != null) {
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, snapshotConfig.getGroupId());
         } else {
-            // Значения по умолчанию
             props.put(ConsumerConfig.GROUP_ID_CONFIG, "analyzer-snapshots-group");
-            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);
         }
+
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
+                snapshotConfig != null ? snapshotConfig.isEnableAutoCommit() : false);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                snapshotConfig != null && snapshotConfig.getAutoOffsetReset() != null ?
+                        snapshotConfig.getAutoOffsetReset() : "earliest");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
+                snapshotConfig != null ? snapshotConfig.getMaxPollRecords() : 10);
 
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, SnapshotDeserializer.class);
