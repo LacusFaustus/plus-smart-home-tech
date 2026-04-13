@@ -1,7 +1,6 @@
 package ru.yandex.practicum.analyzer.service;
 
 import com.google.protobuf.Timestamp;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,12 +36,6 @@ public class SnapshotProcessor {
     private HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient;
 
     private volatile boolean running = true;
-
-    @PostConstruct
-    public void init() {
-        log.info("SnapshotProcessor initialized with gRPC client: {}",
-                hubRouterClient != null ? "present" : "NULL");
-    }
 
     public void start() {
         snapshotConsumer.subscribe(List.of(kafkaConfig.getTopics().getSnapshots()));
@@ -84,16 +77,6 @@ public class SnapshotProcessor {
     private void processSnapshot(SensorsSnapshotAvro snapshot) {
         String hubId = snapshot.getHubId().toString();
         log.info("=== PROCESSING SNAPSHOT for hub: {} ===", hubId);
-        log.info("Snapshot timestamp: {}, sensors count: {}",
-                snapshot.getTimestamp(),
-                snapshot.getSensorsState() != null ? snapshot.getSensorsState().size() : 0);
-
-        if (snapshot.getSensorsState() != null) {
-            for (Map.Entry<CharSequence, ru.yandex.practicum.kafka.telemetry.event.SensorStateAvro> entry : snapshot.getSensorsState().entrySet()) {
-                log.info("Sensor in snapshot: id={}, data={}",
-                        entry.getKey(), entry.getValue().getData());
-            }
-        }
 
         List<Scenario> scenarios = scenarioRepository.findByHubId(hubId);
         log.info("Found {} scenarios for hub {}", scenarios.size(), hubId);
@@ -104,17 +87,6 @@ public class SnapshotProcessor {
         }
 
         for (Scenario scenario : scenarios) {
-            log.info("Checking scenario: name={}, conditions count={}",
-                    scenario.getName(), scenario.getConditions().size());
-
-            for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
-                log.info("  Condition: sensorId={}, type={}, operation={}, value={}",
-                        entry.getKey().getId(),
-                        entry.getValue().getType(),
-                        entry.getValue().getOperation(),
-                        entry.getValue().getValue());
-            }
-
             try {
                 boolean evaluated = scenarioEvaluator.evaluateScenario(scenario, snapshot);
                 log.info("Scenario '{}' evaluated to: {}", scenario.getName(), evaluated);
@@ -126,8 +98,7 @@ public class SnapshotProcessor {
                     log.info("❌ Scenario '{}' NOT activated", scenario.getName());
                 }
             } catch (Exception e) {
-                log.error("Error evaluating scenario '{}': {}",
-                        scenario.getName(), e.getMessage(), e);
+                log.error("Error evaluating scenario '{}': {}", scenario.getName(), e.getMessage(), e);
             }
         }
     }
@@ -165,7 +136,7 @@ public class SnapshotProcessor {
             log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
                     scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
 
-            // ВСЕГДА отправляем, НЕТ проверки на CI
+            // ✅ ВАЖНО: имя метода с маленькой буквы "h" — handleDeviceAction
             try {
                 hubRouterClient.handleDeviceAction(request);
                 log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
