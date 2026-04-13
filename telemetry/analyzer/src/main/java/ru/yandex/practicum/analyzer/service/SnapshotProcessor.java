@@ -108,6 +108,8 @@ public class SnapshotProcessor {
                 if (evaluated) {
                     log.info("🎯 Scenario '{}' ACTIVATED for hub {}", scenario.getName(), hubId);
                     executeActions(scenario, snapshot);
+                    // Добавляем задержку после выполнения действий сценария
+                    Thread.sleep(500);
                 } else {
                     log.info("❌ Scenario '{}' NOT activated - conditions not met", scenario.getName());
                 }
@@ -162,9 +164,11 @@ public class SnapshotProcessor {
             log.info("Sending gRPC request to hub-router:");
             log.info("  Request details: {}", request);
 
-            // Retry logic
+            // Retry logic with delay between attempts
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 try {
+                    // Добавляем задержку перед отправкой
+                    Thread.sleep(200);
                     hubRouterClient.handleDeviceAction(request);
                     log.info("✅ Action sent successfully on attempt {}", attempt);
                     break;
@@ -182,6 +186,15 @@ public class SnapshotProcessor {
                         }
                     }
                 }
+            }
+
+            // Добавляем задержку между отдельными actions
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Interrupted while waiting between actions");
+                break;
             }
         }
     }
