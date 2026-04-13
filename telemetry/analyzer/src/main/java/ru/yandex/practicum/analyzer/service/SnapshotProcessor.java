@@ -10,7 +10,9 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.analyzer.config.KafkaConfig;
-import ru.yandex.practicum.analyzer.entity.*;
+import ru.yandex.practicum.analyzer.entity.Action;
+import ru.yandex.practicum.analyzer.entity.Scenario;
+import ru.yandex.practicum.analyzer.entity.Sensor;
 import ru.yandex.practicum.analyzer.repository.ScenarioRepository;
 import ru.yandex.practicum.grpc.telemetry.event.ActionTypeProto;
 import ru.yandex.practicum.grpc.telemetry.event.DeviceActionProto;
@@ -21,7 +23,6 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorsSnapshotAvro;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -39,7 +40,9 @@ public class SnapshotProcessor {
 
     public void start() {
         snapshotConsumer.subscribe(List.of(kafkaConfig.getTopics().getSnapshots()));
-        log.info("SnapshotProcessor subscribed to topic: {}", kafkaConfig.getTopics().getSnapshots());
+        log.info("=== SnapshotProcessor STARTED ===");
+        log.info("Subscribed to topic: {}", kafkaConfig.getTopics().getSnapshots());
+        log.info("gRPC client for hub-router: {}", hubRouterClient != null ? "INJECTED" : "NULL");
 
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
 
@@ -52,17 +55,21 @@ public class SnapshotProcessor {
                     continue;
                 }
 
+                log.info("Received {} snapshot records", records.count());
+
                 for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
                     try {
+                        log.info("Processing snapshot: offset={}, key={}", record.offset(), record.key());
                         processSnapshot(record.value());
                         snapshotConsumer.commitSync();
+                        log.info("Snapshot processed and committed");
                     } catch (Exception e) {
-                        log.error("Error processing snapshot: {}", e.getMessage(), e);
+                        log.error("ERROR processing snapshot: {}", e.getMessage(), e);
                     }
                 }
             }
         } catch (Exception e) {
-            log.error("Error in SnapshotProcessor", e);
+            log.error("Error in SnapshotProcessor: {}", e.getMessage(), e);
         } finally {
             try {
                 snapshotConsumer.commitSync();
@@ -76,26 +83,33 @@ public class SnapshotProcessor {
 
     private void processSnapshot(SensorsSnapshotAvro snapshot) {
         String hubId = snapshot.getHubId().toString();
-        log.info("=== PROCESSING SNAPSHOT for hub: {} ===", hubId);
+        log.info("=== PROCESSING SNAPSHOT ===");
+        log.info("hubId={}, timestamp={}, sensorsCount={}",
+                hubId, snapshot.getTimestamp(),
+                snapshot.getSensorsState() != null ? snapshot.getSensorsState().size() : 0);
 
         List<Scenario> scenarios = scenarioRepository.findByHubId(hubId);
         log.info("Found {} scenarios for hub {}", scenarios.size(), hubId);
 
         if (scenarios.isEmpty()) {
-            log.debug("No scenarios for hub: {}", hubId);
+            log.warn("⚠️ No scenarios found for hub {}! Make sure HubEventProcessor received SCENARIO_ADDED events.", hubId);
             return;
         }
 
         for (Scenario scenario : scenarios) {
+            log.info("--- Checking scenario: name='{}', id={}, conditions={}, actions={}",
+                    scenario.getName(), scenario.getId(),
+                    scenario.getConditions().size(), scenario.getActions().size());
+
             try {
                 boolean evaluated = scenarioEvaluator.evaluateScenario(scenario, snapshot);
                 log.info("Scenario '{}' evaluated to: {}", scenario.getName(), evaluated);
 
                 if (evaluated) {
-                    log.info("✅ Scenario '{}' ACTIVATED for hub {}", scenario.getName(), hubId);
+                    log.info("🎯 Scenario '{}' ACTIVATED for hub {}", scenario.getName(), hubId);
                     executeActions(scenario, snapshot);
                 } else {
-                    log.info("❌ Scenario '{}' NOT activated", scenario.getName());
+                    log.info("❌ Scenario '{}' NOT activated - conditions not met", scenario.getName());
                 }
             } catch (Exception e) {
                 log.error("Error evaluating scenario '{}': {}", scenario.getName(), e.getMessage(), e);
@@ -104,18 +118,22 @@ public class SnapshotProcessor {
     }
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.info("Executing {} actions for scenario '{}' of hub '{}'",
-                scenario.getActions().size(), scenario.getName(), scenario.getHubId());
+        log.info("=== EXECUTING ACTIONS ===");
+        log.info("Scenario: name='{}', hubId='{}', actions count={}",
+                scenario.getName(), scenario.getHubId(), scenario.getActions().size());
 
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
 
+            log.info("  Action: sensorId='{}', type='{}', value={}",
+                    sensor.getId(), action.getType(), action.getValue());
+
             ActionTypeProto actionType;
             try {
                 actionType = ActionTypeProto.valueOf(action.getType());
             } catch (IllegalArgumentException e) {
-                log.error("Unknown action type: {}", action.getType());
+                log.error("    Unknown action type: {}", action.getType());
                 continue;
             }
 
@@ -133,23 +151,26 @@ public class SnapshotProcessor {
                             .build())
                     .build();
 
-            log.info("Sending action to hub-router: hubId={}, scenario={}, sensorId={}, type={}, value={}",
-                    scenario.getHubId(), scenario.getName(), sensor.getId(), action.getType(), action.getValue());
+            log.info("  📤 Sending gRPC request to hub-router:");
+            log.info("     hubId={}", scenario.getHubId());
+            log.info("     scenarioName={}", scenario.getName());
+            log.info("     sensorId={}", sensor.getId());
+            log.info("     actionType={}", actionType);
+            log.info("     value={}", action.getValue());
 
-            // ✅ ВАЖНО: имя метода с маленькой буквы "h" — handleDeviceAction
             try {
+                log.info("  Calling hubRouterClient.handleDeviceAction()...");
                 hubRouterClient.handleDeviceAction(request);
-                log.info("✅ Action sent successfully: sensorId={}, type={}, value={}",
-                        sensor.getId(), action.getType(), action.getValue());
+                log.info("  ✅ Action sent successfully!");
             } catch (Exception e) {
-                log.error("❌ Failed to send action: sensorId={}, error={}",
-                        sensor.getId(), e.getMessage());
+                log.error("  ❌ Failed to send action: {}", e.getMessage(), e);
             }
         }
     }
 
     @PreDestroy
     public void shutdown() {
+        log.info("Shutting down SnapshotProcessor...");
         running = false;
         snapshotConsumer.wakeup();
     }

@@ -1,6 +1,7 @@
 spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:default}
+
 ---
 spring:
   config:
@@ -20,7 +21,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: false
+    show-sql: true
     defer-datasource-initialization: false
   sql:
     init:
@@ -42,12 +43,12 @@ kafka:
       group-id: analyzer-hub-events-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 1
+      max-poll-records: 10
     snapshots:
       group-id: analyzer-snapshots-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 1
+      max-poll-records: 10
   topics:
     hub-events: telemetry.hubs.v1
     snapshots: telemetry.snapshots.v1
@@ -56,6 +57,10 @@ logging:
   level:
     ru.yandex.practicum: DEBUG
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    io.grpc: DEBUG
+    net.devh: DEBUG
+
 ---
 spring:
   config:
@@ -64,7 +69,7 @@ spring:
   application:
     name: analyzer
   datasource:
-    url: jdbc:postgresql://localhost:5432/smarthome
+    url: jdbc:postgresql://postgres:5432/smarthome
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
@@ -75,41 +80,37 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: false
-    defer-datasource-initialization: false
-  sql:
-    init:
-      mode: never
+    show-sql: true
 
 grpc:
   client:
     hub-router:
-      address: 'static://localhost:59090'
+      address: 'static://hub-router:59090'
       enableKeepAlive: true
       keepAliveWithoutCalls: true
       negotiationType: plaintext
       maxInboundMessageSize: 10485760
 
 kafka:
-  bootstrap-servers: localhost:9092
+  bootstrap-servers: kafka:29092
   consumer:
     hub-events:
       group-id: analyzer-hub-events-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 1
+      max-poll-records: 10
     snapshots:
       group-id: analyzer-snapshots-group
       enable-auto-commit: false
       auto-offset-reset: earliest
-      max-poll-records: 1
+      max-poll-records: 10
   topics:
     hub-events: telemetry.hubs.v1
     snapshots: telemetry.snapshots.v1
 
 logging:
   level:
+    ru.yandex.practicum: DEBUG
+    org.hibernate.SQL: DEBUG
     io.grpc: DEBUG
     net.devh: DEBUG
-    ru.yandex.practicum: DEBUG
-    org.springframework.boot.autoconfigure: ERROR
