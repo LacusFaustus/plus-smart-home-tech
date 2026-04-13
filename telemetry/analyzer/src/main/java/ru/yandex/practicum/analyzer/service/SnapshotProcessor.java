@@ -108,8 +108,6 @@ public class SnapshotProcessor {
                 if (evaluated) {
                     log.info("🎯 Scenario '{}' ACTIVATED for hub {}", scenario.getName(), hubId);
                     executeActions(scenario, snapshot);
-                    // Добавляем задержку после выполнения действий сценария
-                    Thread.sleep(500);
                 } else {
                     log.info("❌ Scenario '{}' NOT activated - conditions not met", scenario.getName());
                 }
@@ -126,6 +124,13 @@ public class SnapshotProcessor {
 
         if (scenario.getActions().isEmpty()) {
             log.warn("Scenario '{}' has no actions to execute!", scenario.getName());
+            return;
+        }
+
+        // Проверяем, доступен ли gRPC клиент
+        if (hubRouterClient == null) {
+            log.warn("⚠️ gRPC client for hub-router is not available. Actions will not be sent.");
+            log.warn("This is expected in test environment where hub-router is optional.");
             return;
         }
 
@@ -164,11 +169,8 @@ public class SnapshotProcessor {
             log.info("Sending gRPC request to hub-router:");
             log.info("  Request details: {}", request);
 
-            // Retry logic with delay between attempts
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 try {
-                    // Добавляем задержку перед отправкой
-                    Thread.sleep(200);
                     hubRouterClient.handleDeviceAction(request);
                     log.info("✅ Action sent successfully on attempt {}", attempt);
                     break;
@@ -176,6 +178,7 @@ public class SnapshotProcessor {
                     log.error("Failed on attempt {}: {}", attempt, e.getMessage());
                     if (attempt == maxRetries) {
                         log.error("❌ Failed to send action after {} attempts", maxRetries, e);
+                        // Не прерываем выполнение, продолжаем со следующими действиями
                     } else {
                         try {
                             Thread.sleep(500);
@@ -186,15 +189,6 @@ public class SnapshotProcessor {
                         }
                     }
                 }
-            }
-
-            // Добавляем задержку между отдельными actions
-            try {
-                Thread.sleep(300);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Interrupted while waiting between actions");
-                break;
             }
         }
     }
