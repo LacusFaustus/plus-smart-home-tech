@@ -26,8 +26,15 @@ public class KafkaConfig {
 
     @Bean
     public KafkaConsumer<String, HubEventAvro> hubEventConsumer() {
+        // Проверка bootstrapServers на null
+        String servers = bootstrapServers;
+        if (servers == null || servers.isEmpty()) {
+            servers = "localhost:9092";
+            System.err.println("WARNING: bootstrap-servers not configured, using default: " + servers);
+        }
+
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, servers);
 
         // Безопасное получение конфигурации с проверкой на null
         HubEventConsumer hubEventConfig = consumer != null ? consumer.getHubEvents() : null;
@@ -40,9 +47,11 @@ public class KafkaConfig {
 
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
                 hubEventConfig != null ? hubEventConfig.isEnableAutoCommit() : false);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-                hubEventConfig != null && hubEventConfig.getAutoOffsetReset() != null ?
-                        hubEventConfig.getAutoOffsetReset() : "earliest");
+
+        String autoOffsetReset = (hubEventConfig != null && hubEventConfig.getAutoOffsetReset() != null)
+                ? hubEventConfig.getAutoOffsetReset() : "earliest";
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
                 hubEventConfig != null ? hubEventConfig.getMaxPollRecords() : 10);
 
@@ -54,8 +63,15 @@ public class KafkaConfig {
 
     @Bean
     public KafkaConsumer<String, SensorsSnapshotAvro> snapshotConsumer() {
+        // Проверка bootstrapServers на null
+        String servers = bootstrapServers;
+        if (servers == null || servers.isEmpty()) {
+            servers = "localhost:9092";
+            System.err.println("WARNING: bootstrap-servers not configured, using default: " + servers);
+        }
+
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, servers);
 
         // Безопасное получение конфигурации с проверкой на null
         SnapshotConsumer snapshotConfig = consumer != null ? consumer.getSnapshots() : null;
@@ -68,9 +84,11 @@ public class KafkaConfig {
 
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,
                 snapshotConfig != null ? snapshotConfig.isEnableAutoCommit() : false);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
-                snapshotConfig != null && snapshotConfig.getAutoOffsetReset() != null ?
-                        snapshotConfig.getAutoOffsetReset() : "earliest");
+
+        String autoOffsetReset = (snapshotConfig != null && snapshotConfig.getAutoOffsetReset() != null)
+                ? snapshotConfig.getAutoOffsetReset() : "earliest";
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
                 snapshotConfig != null ? snapshotConfig.getMaxPollRecords() : 10);
 
