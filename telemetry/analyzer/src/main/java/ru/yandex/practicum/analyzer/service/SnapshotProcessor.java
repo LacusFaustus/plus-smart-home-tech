@@ -23,7 +23,6 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorsSnapshotAvro;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -97,14 +96,6 @@ public class SnapshotProcessor {
             return;
         }
 
-        // Сортируем сценарии для предсказуемого порядка выполнения
-        // Сценарий "Выключить весь свет" должен быть последним
-        scenarios.sort((s1, s2) -> {
-            if (s1.getName().contains("Выключить")) return 1;
-            if (s2.getName().contains("Выключить")) return -1;
-            return s1.getName().compareTo(s2.getName());
-        });
-
         for (Scenario scenario : scenarios) {
             log.info("--- Checking scenario: name='{}', id={}, conditions={}, actions={}",
                     scenario.getName(), scenario.getId(),
@@ -127,22 +118,30 @@ public class SnapshotProcessor {
     }
 
     private void executeActions(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.info("=== EXECUTING ACTIONS ===");
-        log.info("Scenario: name='{}', hubId='{}', actions count={}",
-                scenario.getName(), scenario.getHubId(), scenario.getActions().size());
+        log.info("=== EXECUTING ACTIONS for scenario '{}' ===", scenario.getName());
+        log.info("Hub ID: {}", scenario.getHubId());
+        log.info("Number of actions: {}", scenario.getActions().size());
+
+        if (scenario.getActions().isEmpty()) {
+            log.warn("Scenario '{}' has no actions to execute!", scenario.getName());
+            return;
+        }
+
+        final int maxRetries = 3;
 
         for (var entry : scenario.getActions().entrySet()) {
             Sensor sensor = entry.getKey();
             Action action = entry.getValue();
 
-            log.info("  Action: sensorId='{}', type='{}', value={}",
+            log.info("Preparing action: sensorId='{}', type='{}', value={}",
                     sensor.getId(), action.getType(), action.getValue());
 
             ActionTypeProto actionType;
             try {
                 actionType = ActionTypeProto.valueOf(action.getType());
+                log.info("Action type converted to proto: {}", actionType);
             } catch (IllegalArgumentException e) {
-                log.error("    Unknown action type: {}", action.getType());
+                log.error("Unknown action type: {}", action.getType(), e);
                 continue;
             }
 
@@ -160,27 +159,29 @@ public class SnapshotProcessor {
                             .build())
                     .build();
 
-            log.info("  📤 Sending gRPC request to hub-router:");
-            log.info("     hubId={}", scenario.getHubId());
-            log.info("     scenarioName={}", scenario.getName());
-            log.info("     sensorId={}", sensor.getId());
-            log.info("     actionType={}", actionType);
-            log.info("     value={}", action.getValue());
+            log.info("Sending gRPC request to hub-router:");
+            log.info("  Request details: {}", request);
 
-            // Добавляем небольшую задержку перед отправкой
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            try {
-                log.info("  Calling hubRouterClient.handleDeviceAction()...");
-                hubRouterClient.handleDeviceAction(request);
-                log.info("  ✅ Action sent successfully!");
-            } catch (Exception e) {
-                log.error("  ❌ Failed to send action: {}", e.getMessage(), e);
-                // Не прерываем выполнение, продолжаем с другими действиями
+            // Retry logic
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    hubRouterClient.handleDeviceAction(request);
+                    log.info("✅ Action sent successfully on attempt {}", attempt);
+                    break;
+                } catch (Exception e) {
+                    log.error("Failed on attempt {}: {}", attempt, e.getMessage());
+                    if (attempt == maxRetries) {
+                        log.error("❌ Failed to send action after {} attempts", maxRetries, e);
+                    } else {
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.error("Interrupted while waiting for retry");
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
