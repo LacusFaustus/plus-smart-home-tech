@@ -21,33 +21,90 @@ public class ScenarioEvaluator {
     );
 
     public boolean evaluateScenario(Scenario scenario, SensorsSnapshotAvro snapshot) {
-        log.info("Evaluating scenario '{}' for hub {} (conditions: {})",
-                scenario.getName(), snapshot.getHubId(), scenario.getConditions().size());
+        log.info("=== EVALUATING SCENARIO ===");
+        log.info("Scenario name: '{}'", scenario.getName());
+        log.info("Hub ID from snapshot: '{}'", snapshot.getHubId());
+        log.info("Hub ID from scenario: '{}'", scenario.getHubId());
+        log.info("Number of conditions: {}", scenario.getConditions().size());
+
+        // Проверяем соответствие hubId
+        if (!scenario.getHubId().equals(snapshot.getHubId().toString())) {
+            log.error("Hub ID mismatch! Scenario hubId={}, Snapshot hubId={}",
+                    scenario.getHubId(), snapshot.getHubId());
+            return false;
+        }
+
+        if (scenario.getConditions().isEmpty()) {
+            log.warn("Scenario '{}' has no conditions!", scenario.getName());
+            return false;
+        }
+
+        // Выводим все датчики в снапшоте для отладки
+        if (snapshot.getSensorsState() != null) {
+            log.info("Sensors in snapshot ({} total):", snapshot.getSensorsState().size());
+            for (Map.Entry<CharSequence, SensorStateAvro> entry : snapshot.getSensorsState().entrySet()) {
+                log.info("  - sensorId='{}', dataType={}",
+                        entry.getKey(),
+                        entry.getValue().getData().getClass().getSimpleName());
+            }
+        } else {
+            log.warn("Snapshot has no sensors state!");
+        }
+
+        boolean allConditionsMet = true;
 
         for (Map.Entry<Sensor, Condition> entry : scenario.getConditions().entrySet()) {
             Sensor sensor = entry.getKey();
             Condition condition = entry.getValue();
 
+            log.info("--- Checking condition ---");
+            log.info("Sensor ID from scenario: '{}'", sensor.getId());
+            log.info("Sensor hubId: '{}'", sensor.getHubId());
+            log.info("Condition type: '{}'", condition.getType());
+            log.info("Condition operation: '{}'", condition.getOperation());
+            log.info("Condition expected value: {}", condition.getValue());
+
+            // Get sensor state from snapshot
             SensorStateAvro state = getSensorState(snapshot, sensor.getId());
+
             if (state == null) {
-                log.info("  ❌ Sensor {} not found in snapshot", sensor.getId());
-                return false;
+                log.error("❌ Sensor '{}' NOT FOUND in snapshot!", sensor.getId());
+                allConditionsMet = false;
+                break;
             }
 
+            log.info("✅ Sensor found in snapshot");
+            log.info("Sensor state timestamp: {}", state.getTimestamp());
+            log.info("Sensor data type: {}", state.getData().getClass().getSimpleName());
+            log.info("Sensor data: {}", state.getData());
+
             boolean conditionMet = evaluateCondition(condition, state);
+
             if (!conditionMet) {
-                log.info("  ❌ Condition NOT met: sensor={}, type={}, operation={}, expected={}",
-                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
-                return false;
+                log.error("❌ Condition NOT met for sensor '{}'", sensor.getId());
+                allConditionsMet = false;
+                break;
             } else {
-                log.info("  ✅ Condition met: sensor={}, type={}, operation={}, expected={}",
-                        sensor.getId(), condition.getType(), condition.getOperation(), condition.getValue());
+                log.info("✅ Condition met for sensor '{}'", sensor.getId());
             }
         }
 
-        log.info("✅ Scenario '{}' activated! Executing {} actions",
-                scenario.getName(), scenario.getActions().size());
-        return true;
+        if (allConditionsMet) {
+            log.info("🎉 ALL conditions met! Scenario '{}' will be activated!", scenario.getName());
+            log.info("Number of actions to execute: {}", scenario.getActions().size());
+
+            // Выводим все действия для отладки
+            for (Map.Entry<Sensor, Action> entry : scenario.getActions().entrySet()) {
+                log.info("  Action: sensorId='{}', type='{}', value={}",
+                        entry.getKey().getId(),
+                        entry.getValue().getType(),
+                        entry.getValue().getValue());
+            }
+        } else {
+            log.warn("❌ Scenario '{}' NOT activated - conditions not met", scenario.getName());
+        }
+
+        return allConditionsMet;
     }
 
     private boolean evaluateCondition(Condition condition, SensorStateAvro state) {
@@ -58,96 +115,115 @@ public class ScenarioEvaluator {
         Object data = state.getData();
         Integer actualValue = extractValue(data, type);
 
-        log.debug("Condition evaluation: type={}, actual={}, expected={}, operation={}",
+        log.info("Evaluating condition: type={}, actual={}, expected={}, operation={}",
                 type, actualValue, expectedValue, operation);
 
         if (actualValue == null) {
-            log.warn("Could not extract value for type {}", type);
+            log.error("Could not extract value for type {} from data: {}", type, data);
             return false;
         }
 
         BiPredicate<Integer, Integer> predicate = OPERATIONS.get(operation);
         if (predicate == null) {
-            log.warn("Unknown operation: {}", operation);
+            log.error("Unknown operation: {}", operation);
             return false;
         }
 
         boolean result = predicate.test(actualValue, expectedValue);
-        log.debug("Condition result: {}", result);
+        log.info("Evaluation result: {} ({} {} {})", result, actualValue, operation, expectedValue);
         return result;
     }
 
     private Integer extractValue(Object data, String type) {
         if (data == null) {
+            log.error("Data is null");
             return null;
         }
 
         log.debug("Extracting value from data type: {}, for condition type: {}",
                 data.getClass().getSimpleName(), type);
 
-        return switch (type) {
-            case "MOTION" -> {
-                if (data instanceof MotionSensorAvro motion) {
-                    yield motion.getMotion() ? 1 : 0;
-                }
-                log.warn("Data is not MotionSensorAvro: {}", data.getClass().getSimpleName());
-                yield null;
+        try {
+            switch (type) {
+                case "MOTION":
+                    if (data instanceof MotionSensorAvro motion) {
+                        int result = motion.getMotion() ? 1 : 0;
+                        log.debug("Motion value: {} -> {}", motion.getMotion(), result);
+                        return result;
+                    }
+                    log.error("Data is not MotionSensorAvro: {}", data.getClass().getSimpleName());
+                    return null;
+
+                case "SWITCH":
+                    if (data instanceof SwitchSensorAvro switchSensor) {
+                        int result = switchSensor.getState() ? 1 : 0;
+                        log.debug("Switch state: {} -> {}", switchSensor.getState(), result);
+                        return result;
+                    }
+                    log.error("Data is not SwitchSensorAvro: {}", data.getClass().getSimpleName());
+                    return null;
+
+                case "TEMPERATURE":
+                    if (data instanceof ClimateSensorAvro climate) {
+                        int temp = climate.getTemperatureC();
+                        log.debug("Temperature from ClimateSensor: {}C", temp);
+                        return temp;
+                    } else if (data instanceof TemperatureSensorAvro temp) {
+                        int tempC = temp.getTemperatureC();
+                        log.debug("Temperature from TemperatureSensor: {}C", tempC);
+                        return tempC;
+                    }
+                    log.error("Data does not contain temperature: {}", data.getClass().getSimpleName());
+                    return null;
+
+                case "LUMINOSITY":
+                    if (data instanceof LightSensorAvro light) {
+                        int lum = light.getLuminosity();
+                        log.debug("Luminosity: {}", lum);
+                        return lum;
+                    }
+                    log.error("Data is not LightSensorAvro: {}", data.getClass().getSimpleName());
+                    return null;
+
+                case "CO2LEVEL":
+                    if (data instanceof ClimateSensorAvro climate) {
+                        int co2 = climate.getCo2Level();
+                        log.debug("CO2 level: {}", co2);
+                        return co2;
+                    }
+                    log.error("Data does not contain CO2: {}", data.getClass().getSimpleName());
+                    return null;
+
+                case "HUMIDITY":
+                    if (data instanceof ClimateSensorAvro climate) {
+                        int humidity = climate.getHumidity();
+                        log.debug("Humidity: {}", humidity);
+                        return humidity;
+                    }
+                    log.error("Data does not contain humidity: {}", data.getClass().getSimpleName());
+                    return null;
+
+                default:
+                    log.error("Unknown condition type: {}", type);
+                    return null;
             }
-            case "SWITCH" -> {
-                if (data instanceof SwitchSensorAvro switchSensor) {
-                    yield switchSensor.getState() ? 1 : 0;
-                }
-                log.warn("Data is not SwitchSensorAvro: {}", data.getClass().getSimpleName());
-                yield null;
-            }
-            case "TEMPERATURE" -> {
-                if (data instanceof ClimateSensorAvro climate) {
-                    yield climate.getTemperatureC();
-                } else if (data instanceof TemperatureSensorAvro temp) {
-                    yield temp.getTemperatureC();
-                }
-                log.warn("Data does not contain temperature: {}", data.getClass().getSimpleName());
-                yield null;
-            }
-            case "LUMINOSITY" -> {
-                if (data instanceof LightSensorAvro light) {
-                    yield light.getLuminosity();
-                }
-                log.warn("Data is not LightSensorAvro: {}", data.getClass().getSimpleName());
-                yield null;
-            }
-            case "CO2LEVEL" -> {
-                if (data instanceof ClimateSensorAvro climate) {
-                    yield climate.getCo2Level();
-                }
-                log.warn("Data does not contain CO2: {}", data.getClass().getSimpleName());
-                yield null;
-            }
-            case "HUMIDITY" -> {
-                if (data instanceof ClimateSensorAvro climate) {
-                    yield climate.getHumidity();
-                }
-                log.warn("Data does not contain humidity: {}", data.getClass().getSimpleName());
-                yield null;
-            }
-            default -> {
-                log.warn("Unknown condition type: {}", type);
-                yield null;
-            }
-        };
+        } catch (Exception e) {
+            log.error("Error extracting value: {}", e.getMessage(), e);
+            return null;
+        }
     }
 
     private SensorStateAvro getSensorState(SensorsSnapshotAvro snapshot, String sensorId) {
         Map<CharSequence, SensorStateAvro> states = snapshot.getSensorsState();
         if (states == null || states.isEmpty()) {
-            log.debug("Snapshot for hub {} has no sensor states", snapshot.getHubId());
+            log.debug("Snapshot has no sensor states");
             return null;
         }
 
         // Try direct string lookup
         SensorStateAvro state = states.get(sensorId);
         if (state != null) {
-            log.debug("Sensor {} found by direct key", sensorId);
+            log.debug("Sensor found by direct key: {}", sensorId);
             return state;
         }
 
@@ -155,7 +231,7 @@ public class ScenarioEvaluator {
         Utf8 utf8Key = new Utf8(sensorId);
         state = states.get(utf8Key);
         if (state != null) {
-            log.debug("Sensor {} found via Utf8", sensorId);
+            log.debug("Sensor found via Utf8: {}", sensorId);
             return state;
         }
 
@@ -163,12 +239,13 @@ public class ScenarioEvaluator {
         for (Map.Entry<CharSequence, SensorStateAvro> entry : states.entrySet()) {
             String keyStr = entry.getKey().toString();
             if (keyStr.equals(sensorId)) {
-                log.debug("Sensor {} found via iteration", sensorId);
+                log.debug("Sensor found via iteration: {}", sensorId);
                 return entry.getValue();
             }
         }
 
-        log.debug("Sensor {} not found in snapshot", sensorId);
+        log.error("Sensor {} not found in snapshot. Available sensors: {}",
+                sensorId, states.keySet());
         return null;
     }
 }

@@ -2,7 +2,6 @@ package ru.yandex.practicum.analyzer.config;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -29,10 +28,21 @@ public class KafkaConfig {
     public KafkaConsumer<String, HubEventAvro> hubEventConsumer() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getHubEvents().getGroupId());
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getHubEvents().isEnableAutoCommit());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getHubEvents().getAutoOffsetReset());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getHubEvents().getMaxPollRecords());
+
+        // Безопасная проверка на null
+        if (consumer != null && consumer.getHubEvents() != null) {
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getHubEvents().getGroupId());
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getHubEvents().isEnableAutoCommit());
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getHubEvents().getAutoOffsetReset());
+            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getHubEvents().getMaxPollRecords());
+        } else {
+            // Значения по умолчанию
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, "analyzer-hub-events-group");
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);
+        }
+
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, HubEventDeserializer.class);
 
@@ -43,10 +53,21 @@ public class KafkaConfig {
     public KafkaConsumer<String, SensorsSnapshotAvro> snapshotConsumer() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getSnapshots().getGroupId());
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getSnapshots().isEnableAutoCommit());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getSnapshots().getAutoOffsetReset());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getSnapshots().getMaxPollRecords());
+
+        // Безопасная проверка на null
+        if (consumer != null && consumer.getSnapshots() != null) {
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, consumer.getSnapshots().getGroupId());
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, consumer.getSnapshots().isEnableAutoCommit());
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumer.getSnapshots().getAutoOffsetReset());
+            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, consumer.getSnapshots().getMaxPollRecords());
+        } else {
+            // Значения по умолчанию
+            props.put(ConsumerConfig.GROUP_ID_CONFIG, "analyzer-snapshots-group");
+            props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+            props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+            props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);
+        }
+
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, SnapshotDeserializer.class);
 
