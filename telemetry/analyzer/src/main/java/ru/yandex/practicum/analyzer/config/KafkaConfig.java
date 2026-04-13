@@ -22,8 +22,8 @@ import java.util.Properties;
 @Setter
 public class KafkaConfig {
     private String bootstrapServers;
-    private ConsumerConfigProperties consumer;
-    private Topics topics;
+    private ConsumerConfigProperties consumer = new ConsumerConfigProperties();
+    private Topics topics = new Topics();
 
     @Bean
     public KafkaConsumer<String, HubEventAvro> hubEventConsumer() {
@@ -63,25 +63,25 @@ public class KafkaConfig {
     @Getter
     @Setter
     public static class HubEventConsumer {
-        private String groupId;
-        private boolean enableAutoCommit;
-        private String autoOffsetReset;
-        private int maxPollRecords;
+        private String groupId = "analyzer-hub-events-group";
+        private boolean enableAutoCommit = false;
+        private String autoOffsetReset = "earliest";
+        private int maxPollRecords = 10;
     }
 
     @Getter
     @Setter
     public static class SnapshotConsumer {
-        private String groupId;
-        private boolean enableAutoCommit;
-        private String autoOffsetReset;
-        private int maxPollRecords;
+        private String groupId = "analyzer-snapshots-group";
+        private boolean enableAutoCommit = false;
+        private String autoOffsetReset = "earliest";
+        private int maxPollRecords = 10;
     }
 
     @Getter
     @Setter
     public static class Topics {
-        private String hubEvents;
-        private String snapshots;
+        private String hubEvents = "telemetry.hubs.v1";
+        private String snapshots = "telemetry.snapshots.v1";
     }
 }

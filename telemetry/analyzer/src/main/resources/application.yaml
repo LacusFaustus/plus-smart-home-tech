@@ -6,7 +6,7 @@ spring:
 spring:
   config:
     activate:
-      on-profile: ci
+      on-profile: default
   application:
     name: analyzer
   datasource:
@@ -21,7 +21,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: false
     defer-datasource-initialization: false
   sql:
     init:
@@ -57,9 +57,6 @@ logging:
   level:
     ru.yandex.practicum: DEBUG
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    io.grpc: DEBUG
-    net.devh: DEBUG
 
 ---
 spring:
@@ -80,12 +77,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: false
 
 grpc:
   client:
     hub-router:
-      address: 'static://hub-router:59090'
+      address: 'static://localhost:59090'
       enableKeepAlive: true
       keepAliveWithoutCalls: true
       negotiationType: plaintext
@@ -111,6 +108,5 @@ kafka:
 logging:
   level:
     ru.yandex.practicum: DEBUG
-    org.hibernate.SQL: DEBUG
     io.grpc: DEBUG
     net.devh: DEBUG
