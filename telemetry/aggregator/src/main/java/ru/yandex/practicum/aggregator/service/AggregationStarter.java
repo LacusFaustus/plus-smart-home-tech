@@ -39,11 +39,19 @@ public class AggregationStarter {
                 ConsumerRecords<String, SpecificRecordBase> records =
                         consumer.poll(Duration.ofSeconds(1));
 
-                for (ConsumerRecord<String, SpecificRecordBase> record : records) {
-                    processRecord(record);
+                if (records.isEmpty()) {
+                    continue;
                 }
 
-                // Коммитим только после успешной обработки всех записей
+                for (ConsumerRecord<String, SpecificRecordBase> record : records) {
+                    try {
+                        processRecord(record);
+                    } catch (Exception e) {
+                        log.error("Ошибка обработки записи: {}", e.getMessage(), e);
+                        return;
+                    }
+                }
+
                 consumer.commitSync();
             }
         } catch (WakeupException e) {
@@ -52,7 +60,6 @@ public class AggregationStarter {
             log.error("Ошибка обработки", e);
         } finally {
             try {
-                // Финальный коммит перед закрытием
                 consumer.commitSync();
             } catch (Exception e) {
                 log.error("Ошибка при финальном коммите", e);
@@ -77,20 +84,18 @@ public class AggregationStarter {
         String hubId = event.getHubId().toString();
         String sensorId = event.getId().toString();
 
-        // 1. Создаем новое состояние датчика из события
         SensorStateAvro newState = SensorStateAvro.newBuilder()
                 .setTimestamp(event.getTimestamp())
                 .setData(event.getPayload())
                 .build();
 
-        // 2. Атомарно обновляем мапу снапшотов
         SensorsSnapshotAvro snapshotToSend;
 
         synchronized (snapshots) {
             SensorsSnapshotAvro existingSnapshot = snapshots.get(hubId);
 
             if (existingSnapshot == null) {
-                // Создаем новый снапшот
+                // Используем HashMap с String ключами
                 Map<CharSequence, SensorStateAvro> states = new HashMap<>();
                 states.put(sensorId, newState);
 
@@ -101,15 +106,13 @@ public class AggregationStarter {
                         .build();
 
                 snapshots.put(hubId, snapshotToSend);
-                log.info("Создан новый снапшот для хаба {}", hubId);
+                log.info("Создан новый снапшот для хаба {} с датчиком {}", hubId, sensorId);
 
                 return Optional.of(snapshotToSend);
             }
 
-            // Проверяем, есть ли уже состояние для этого датчика
             SensorStateAvro oldState = existingSnapshot.getSensorsState().get(sensorId);
 
-            // Сравниваем ТОЛЬКО данные (payload), игнорируя timestamp
             Object oldData = oldState != null ? oldState.getData() : null;
             Object newData = newState.getData();
 
@@ -118,8 +121,11 @@ public class AggregationStarter {
                 return Optional.empty();
             }
 
-            // Данные изменились или датчик новый - создаем обновленный снапшот
-            Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>(existingSnapshot.getSensorsState());
+            // Создаем новую мапу с String ключами
+            Map<CharSequence, SensorStateAvro> updatedStates = new HashMap<>();
+            for (Map.Entry<CharSequence, SensorStateAvro> entry : existingSnapshot.getSensorsState().entrySet()) {
+                updatedStates.put(entry.getKey().toString(), entry.getValue());
+            }
             updatedStates.put(sensorId, newState);
 
             snapshotToSend = SensorsSnapshotAvro.newBuilder()
@@ -146,7 +152,7 @@ public class AggregationStarter {
 
         try {
             ProducerRecord<String, SpecificRecordBase> record =
-                    new ProducerRecord<>(snapshotTopic, snapshot);
+                    new ProducerRecord<>(snapshotTopic, snapshot.getHubId().toString(), snapshot);
             producer.send(record, (metadata, exception) -> {
                 if (exception != null) {
                     log.error("Ошибка отправки снапшота в Kafka: {}", exception.getMessage(), exception);

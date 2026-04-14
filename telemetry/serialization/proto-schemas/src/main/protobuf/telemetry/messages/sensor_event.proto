@@ -22,7 +22,7 @@ message SensorEventProto {
 
 message MotionSensorProto {
   int32 link_quality = 1;
-  int32 motion = 2;  // int32, не bool
+  bool motion = 2;
   int32 voltage = 3;
 }
 
@@ -43,5 +43,5 @@ message ClimateSensorProto {
 }
 
 message SwitchSensorProto {
-  int32 state = 1;  // int32, не bool
+  bool state = 1;
 }

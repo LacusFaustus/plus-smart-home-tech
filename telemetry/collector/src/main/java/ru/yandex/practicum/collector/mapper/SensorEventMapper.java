@@ -55,14 +55,14 @@ public class SensorEventMapper {
     private MotionSensorAvro mapMotionSensor(MotionSensorProto proto) {
         return MotionSensorAvro.newBuilder()
                 .setLinkQuality(proto.getLinkQuality())
-                .setMotion(proto.getMotion() != 0)  // int -> boolean
+                .setMotion(proto.getMotion())
                 .setVoltage(proto.getVoltage())
                 .build();
     }
 
     private SwitchSensorAvro mapSwitchSensor(SwitchSensorProto proto) {
         return SwitchSensorAvro.newBuilder()
-                .setState(proto.getState() != 0)  // int -> boolean
+                .setState(proto.getState())
                 .build();
     }
 
