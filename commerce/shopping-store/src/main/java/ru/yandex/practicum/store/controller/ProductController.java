@@ -1,0 +1,84 @@
+package ru.yandex.practicum.store.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.*;
+import ru.yandex.practicum.client.ShoppingStoreClient;
+import ru.yandex.practicum.dto.shopping-store.ProductDto;
+import ru.yandex.practicum.dto.shopping-store.SetProductQuantityStateRequest;
+import ru.yandex.practicum.dto.shopping-store.PageProductDto;
+import ru.yandex.practicum.enums.ProductCategory;
+import ru.yandex.practicum.store.service.ProductService;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/shopping-store")
+@RequiredArgsConstructor
+@Slf4j
+public class ProductController implements ShoppingStoreClient {
+    private final ProductService productService;
+
+    @Override
+    public PageProductDto getProducts(String category, int page, int size, List<String> sort) {
+        log.info("GET /api/v1/shopping-store: category={}, page={}, size={}, sort={}", category, page, size, sort);
+        ProductCategory productCategory;
+        try {
+            productCategory = ProductCategory.valueOf(category);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid category: " + category);
+        }
+        return productService.getProducts(productCategory, PageRequest.of(page, size, parseSort(sort)));
+    }
+
+    @Override
+    public ProductDto getProduct(@PathVariable("productId") UUID productId) {
+        log.info("GET /api/v1/shopping-store/{}", productId);
+        return productService.getProduct(productId);
+    }
+
+    @Override
+    public ProductDto createNewProduct(@RequestBody ProductDto product) {
+        log.info("PUT /api/v1/shopping-store: {}", product);
+        return productService.createProduct(product);
+    }
+
+    @Override
+    public ProductDto updateProduct(@RequestBody ProductDto product) {
+        log.info("POST /api/v1/shopping-store: {}", product);
+        return productService.updateProduct(product);
+    }
+
+    @Override
+    public boolean removeProductFromStore(@RequestBody UUID productId) {
+        log.info("POST /api/v1/shopping-store/removeProductFromStore: {}", productId);
+        productService.deactivateProduct(productId);
+        return true;
+    }
+
+    @Override
+    public boolean setProductQuantityState(@RequestBody SetProductQuantityStateRequest request) {
+        log.info("POST /api/v1/shopping-store/quantityState: {}", request);
+        productService.updateQuantityState(request.getProductId(), request.getQuantityState());
+        return true;
+    }
+
+    private Sort parseSort(List<String> sortParams) {
+        if (sortParams == null || sortParams.isEmpty()) {
+            return Sort.unsorted();
+        }
+        List<Sort.Order> orders = new ArrayList<>();
+        for (String param : sortParams) {
+            String[] parts = param.split(",");
+            String property = parts[0];
+            Sort.Direction direction = parts.length > 1 && parts[1].equalsIgnoreCase("desc")
+                    ? Sort.Direction.DESC : Sort.Direction.ASC;
+            orders.add(new Sort.Order(direction, property));
+        }
+        return Sort.by(orders);
+    }
+}

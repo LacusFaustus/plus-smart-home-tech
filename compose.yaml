@@ -45,8 +45,63 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./commerce/schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql
+    restart: unless-stopped
+
+  discovery-server:
+    build: ./infra/discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+    restart: unless-stopped
+
+  config-server:
+    build: ./infra/config-server
+    container_name: config-server
+    depends_on:
+      - discovery-server
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    restart: unless-stopped
+
+  shopping-store:
+    build: ./commerce/shopping-store
+    container_name: shopping-store
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    restart: unless-stopped
+
+  shopping-cart:
+    build: ./commerce/shopping-cart
+    container_name: shopping-cart
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+      - warehouse
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    restart: unless-stopped
+
+  warehouse:
+    build: ./commerce/warehouse
+    container_name: warehouse
+    depends_on:
+      - discovery-server
+      - config-server
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
     restart: unless-stopped
 
 volumes:
   postgres-data:
-
