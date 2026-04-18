@@ -15,8 +15,8 @@ spring:
 eureka:
   client:
     enabled: false
-    registerWithEureka: false
-    fetchRegistry: false
+    register-with-eureka: false
+    fetch-registry: false
 
 management:
   endpoints:
