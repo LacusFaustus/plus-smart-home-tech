@@ -11,7 +11,7 @@ import ru.yandex.practicum.dto.exceptions.ProductInShoppingCartLowQuantityInWare
 import ru.yandex.practicum.dto.exceptions.NoSpecifiedProductInWarehouseException;
 import ru.yandex.practicum.dto.warehouse.BookedProductsDto;
 import ru.yandex.practicum.enums.CartState;
-import ru.yandex.practicum.cart.client.WarehouseFeignClient;
+import ru.yandex.practicum.client.WarehouseClient;
 import ru.yandex.practicum.cart.model.Cart;
 import ru.yandex.practicum.cart.model.CartItem;
 import ru.yandex.practicum.cart.repository.CartRepository;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
-    private final WarehouseFeignClient warehouseClient;
+    private final WarehouseClient warehouseClient;
 
     // ==================== Публичные методы API ====================
 
