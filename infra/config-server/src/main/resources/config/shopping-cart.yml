@@ -1,31 +1,19 @@
 spring:
   datasource:
-    url: jdbc:postgresql://postgres:5432/smarthome?currentSchema=cart_db
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:h2:mem:shoppingcart;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS cart_db
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: cart_db
+        dialect: org.hibernate.dialect.H2Dialect
     show-sql: true
 
 server:
-  port: 0
-
-management:
-  server:
-    port: 0
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
+  port: 8082
 
 eureka:
   client:
@@ -34,3 +22,12 @@ eureka:
   instance:
     preferIpAddress: true
     instance-id: ${spring.application.name}:${random.uuid}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
