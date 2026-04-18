@@ -68,6 +68,15 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
     restart: unless-stopped
 
+  config-server:
+    build: ./infra/config-server
+    container_name: config-server
+    depends_on:
+      - discovery-server
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+    restart: unless-stopped
+
   shopping-store:
     build: ./commerce/shopping-store
     container_name: shopping-store
