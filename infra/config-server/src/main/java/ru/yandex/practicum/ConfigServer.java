@@ -5,6 +5,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @SpringBootApplication
 @RestController
 public class ConfigServer {
@@ -14,24 +16,12 @@ public class ConfigServer {
     }
 
     @GetMapping("/actuator/health")
-    public Health health() {
-        return new Health("UP");
+    public Map<String, String> health() {
+        return Map.of("status", "UP");
     }
 
     @GetMapping("/actuator/info")
-    public Info info() {
-        return new Info("config-server");
-    }
-
-    static class Health {
-        private final String status;
-        Health(String status) { this.status = status; }
-        public String getStatus() { return status; }
-    }
-
-    static class Info {
-        private final String name;
-        Info(String name) { this.name = name; }
-        public String getName() { return name; }
+    public Map<String, String> info() {
+        return Map.of("name", "config-server");
     }
 }
