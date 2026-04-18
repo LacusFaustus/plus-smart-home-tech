@@ -57,6 +57,17 @@ services:
       - SPRING_PROFILES_ACTIVE=default
     restart: unless-stopped
 
+  warehouse:
+    build: ./commerce/warehouse
+    container_name: warehouse
+    depends_on:
+      - discovery-server
+      - postgres
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
+    restart: unless-stopped
+
   shopping-store:
     build: ./commerce/shopping-store
     container_name: shopping-store
@@ -75,17 +86,6 @@ services:
       - discovery-server
       - postgres
       - warehouse
-    environment:
-      - SPRING_PROFILES_ACTIVE=default
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
-    restart: unless-stopped
-
-  warehouse:
-    build: ./commerce/warehouse
-    container_name: warehouse
-    depends_on:
-      - discovery-server
-      - postgres
     environment:
       - SPRING_PROFILES_ACTIVE=default
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-server:8761/eureka/
