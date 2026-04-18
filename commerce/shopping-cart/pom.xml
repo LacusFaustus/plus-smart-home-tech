@@ -64,6 +64,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>ru.yandex.practicum.cart.ShoppingCartApplication</mainClass>
+                    <arguments>
+                        <argument>--server.port=0</argument>
+                    </arguments>
+                </configuration>
             </plugin>
         </plugins>
     </build>
