@@ -3,7 +3,7 @@ package ru.yandex.practicum.client;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.dto.warehouse.*;
-import ru.yandex.practicum.dto.shopping-cart.ShoppingCartDto;
+import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
 
 @FeignClient(name = "warehouse")
 public interface WarehouseClient {

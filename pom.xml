@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -16,7 +17,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>telemetry</module>
+        <!-- <module>telemetry</module> -->  <!-- Закомментировано -->
         <module>infra</module>
         <module>commerce</module>
     </modules>
@@ -39,19 +40,14 @@
         <grpc.version>1.63.0</grpc.version>
         <confluent.version>7.4.0</confluent.version>
         <resilience4j.version>2.2.0</resilience4j.version>
-
-        <!-- Plugins -->
-        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
-        <avro-maven-plugin.version>${avro.version}</avro-maven-plugin.version>
-        <protobuf-plugin.version>2.4.0</protobuf-plugin.version>
     </properties>
 
-    <repositories>
+    <!-- <repositories>
         <repository>
             <id>confluent</id>
             <url>https://packages.confluent.io/maven/</url>
         </repository>
-    </repositories>
+    </repositories> -->
 
     <dependencyManagement>
         <dependencies>
@@ -71,49 +67,50 @@
                 <version>${resilience4j.version}</version>
             </dependency>
 
-            <!-- Другие зависимости -->
+            <!-- Avro -->
             <dependency>
                 <groupId>org.apache.avro</groupId>
                 <artifactId>avro</artifactId>
                 <version>${avro.version}</version>
             </dependency>
 
+            <!-- Kafka -->
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
                 <version>${kafka-clients.version}</version>
             </dependency>
 
+            <!-- SpringDoc OpenAPI -->
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc-openapi-starter.version}</version>
             </dependency>
 
+            <!-- gRPC -->
             <dependency>
                 <groupId>net.devh</groupId>
                 <artifactId>grpc-spring-boot-starter</artifactId>
                 <version>${grpc-spring-boot-starter.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>net.devh</groupId>
                 <artifactId>grpc-server-spring-boot-starter</artifactId>
                 <version>${grpc-spring-boot-starter.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-stub</artifactId>
                 <version>${grpc.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-protobuf</artifactId>
                 <version>${grpc.version}</version>
             </dependency>
 
+            <!-- Confluent -->
             <dependency>
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-avro-serializer</artifactId>
@@ -128,7 +125,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>${maven-compiler-plugin.version}</version>
+                    <version>3.11.0</version>
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
@@ -156,12 +153,7 @@
                 <plugin>
                     <groupId>org.apache.avro</groupId>
                     <artifactId>avro-maven-plugin</artifactId>
-                    <version>${avro-maven-plugin.version}</version>
-                </plugin>
-                <plugin>
-                    <groupId>io.github.ascopes</groupId>
-                    <artifactId>protobuf-maven-plugin</artifactId>
-                    <version>${protobuf-plugin.version}</version>
+                    <version>${avro.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>

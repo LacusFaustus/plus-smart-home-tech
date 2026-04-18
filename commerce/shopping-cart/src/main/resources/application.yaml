@@ -2,12 +2,9 @@ spring:
   application:
     name: shopping-cart
   config:
-    import: "configserver:"
+    import: optional:configserver:http://localhost:8888
   cloud:
     config:
-      discovery:
-        enabled: true
-        serviceId: config-server
       fail-fast: true
 
 server:
@@ -19,25 +16,4 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
   instance:
     preferIpAddress: true
-
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        slidingWindowSize: 20
-        failureRateThreshold: 50
-        waitDurationInOpenState: 30000
-        permittedNumberOfCallsInHalfOpenState: 5
-        minimumNumberOfCalls: 5
-        registerHealthIndicator: true
-    instances:
-      warehouseCheck:
-        baseConfig: default
-        slidingWindowSize: 10
-        failureRateThreshold: 30
-        waitDurationInOpenState: 60000
-
-logging:
-  level:
-    ru.yandex.practicum: DEBUG
-    io.github.resilience4j: DEBUG
+    instance-id: ${spring.application.name}:${random.uuid}

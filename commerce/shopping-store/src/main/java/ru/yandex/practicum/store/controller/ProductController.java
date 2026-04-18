@@ -4,11 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.client.ShoppingStoreClient;
-import ru.yandex.practicum.dto.shopping-store.ProductDto;
-import ru.yandex.practicum.dto.shopping-store.SetProductQuantityStateRequest;
-import ru.yandex.practicum.dto.shopping-store.PageProductDto;
+import ru.yandex.practicum.dto.shoppingstore.ProductDto;
+import ru.yandex.practicum.dto.shoppingstore.SetProductQuantityStateRequest;
+import ru.yandex.practicum.dto.shoppingstore.PageProductDto;
+import ru.yandex.practicum.dto.exceptions.ProductNotFoundException;
 import ru.yandex.practicum.enums.ProductCategory;
 import ru.yandex.practicum.store.service.ProductService;
 
@@ -81,4 +83,13 @@ public class ProductController implements ShoppingStoreClient {
         }
         return Sort.by(orders);
     }
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleProductNotFound(ProductNotFoundException ex) {
+        log.error("Product not found: {}", ex.getMessage());
+        return new ErrorResponse(ex.getUserMessage());
+    }
+
+    record ErrorResponse(String message) {}
 }

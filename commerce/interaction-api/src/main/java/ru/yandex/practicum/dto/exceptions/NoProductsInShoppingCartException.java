@@ -3,6 +3,8 @@ package ru.yandex.practicum.dto.exceptions;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+import java.util.UUID;
+
 @Getter
 public class NoProductsInShoppingCartException extends RuntimeException {
     private final HttpStatus httpStatus;

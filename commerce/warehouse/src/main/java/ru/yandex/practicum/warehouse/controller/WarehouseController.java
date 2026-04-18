@@ -4,12 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.client.WarehouseClient;
-import ru.yandex.practicum.dto.shopping-cart.ShoppingCartDto;
+import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
 import ru.yandex.practicum.dto.warehouse.*;
 import ru.yandex.practicum.warehouse.service.AddressService;
 import ru.yandex.practicum.warehouse.service.WarehouseService;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/warehouse")

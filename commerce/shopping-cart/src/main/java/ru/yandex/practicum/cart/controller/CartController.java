@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.client.ShoppingCartClient;
-import ru.yandex.practicum.dto.shopping-cart.ShoppingCartDto;
-import ru.yandex.practicum.dto.shopping-cart.ChangeProductQuantityRequest;
+import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
+import ru.yandex.practicum.dto.shoppingcart.ChangeProductQuantityRequest;
 import ru.yandex.practicum.cart.service.CartService;
 
 import java.util.List;

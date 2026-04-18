@@ -2,12 +2,9 @@ spring:
   application:
     name: warehouse
   config:
-    import: "configserver:"
+    import: optional:configserver:http://localhost:8888
   cloud:
     config:
-      discovery:
-        enabled: true
-        serviceId: config-server
       fail-fast: true
 
 server:
@@ -19,7 +16,4 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
   instance:
     preferIpAddress: true
-
-logging:
-  level:
-    ru.yandex.practicum: DEBUG
+    instance-id: ${spring.application.name}:${random.uuid}

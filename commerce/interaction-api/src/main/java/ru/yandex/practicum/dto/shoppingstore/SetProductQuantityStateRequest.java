@@ -1,9 +1,10 @@
-package ru.yandex.practicum.dto.shopping-cart;
+package ru.yandex.practicum.dto.shoppingstore;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ru.yandex.practicum.enums.QuantityState;
 
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChangeProductQuantityRequest {
+public class SetProductQuantityStateRequest {
     private UUID productId;
-    private Long newQuantity;
+    private QuantityState quantityState;
 }

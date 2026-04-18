@@ -2,8 +2,8 @@ package ru.yandex.practicum.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.dto.shopping-cart.ShoppingCartDto;
-import ru.yandex.practicum.dto.shopping-cart.ChangeProductQuantityRequest;
+import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
+import ru.yandex.practicum.dto.shoppingcart.ChangeProductQuantityRequest;
 
 import java.util.List;
 import java.util.Map;

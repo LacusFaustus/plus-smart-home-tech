@@ -1,17 +1,16 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/smarthome
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:h2:mem:shoppingcart;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    show-sql: false
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: true
 
 resilience4j:
   circuitbreaker:
@@ -27,6 +26,12 @@ resilience4j:
         slidingWindowSize: 10
         failureRateThreshold: 30
 
-logging:
-  level:
-    ru.yandex.practicum: DEBUG
+server:
+  port: 0
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    preferIpAddress: true

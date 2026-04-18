@@ -2,13 +2,13 @@ package ru.yandex.practicum.cart.fallback;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.dto.shopping-cart.ShoppingCartDto;
+import ru.yandex.practicum.client.WarehouseClient;
+import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
 import ru.yandex.practicum.dto.warehouse.*;
-import ru.yandex.practicum.cart.client.WarehouseFeignClient;
 
 @Component
 @Slf4j
-public class WarehouseFallback implements WarehouseFeignClient {
+public class WarehouseFallback implements WarehouseClient {
 
     @Override
     public void newProductInWarehouse(NewProductInWarehouseRequest request) {
