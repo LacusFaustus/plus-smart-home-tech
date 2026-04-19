@@ -3,15 +3,26 @@ spring:
     name: warehouse
   cloud:
     config:
-      enabled: true
-      uri: http://config-server:8888
+      uri: http://localhost:8888
+      fail-fast: false
+  config:
+    import: optional:configserver:http://localhost:8888
+
+server:
+  port: 8081
 
 eureka:
   client:
     serviceUrl:
-      defaultZone: http://discovery-server:8761/eureka/
+      defaultZone: http://localhost:8761/eureka/
     register-with-eureka: true
     fetch-registry: true
   instance:
     preferIpAddress: true
     instance-id: ${spring.application.name}:${random.uuid}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

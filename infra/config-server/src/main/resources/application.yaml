@@ -12,16 +12,6 @@ spring:
         native:
           search-locations: classpath:/config
 
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://discovery-server:8761/eureka/
-    register-with-eureka: true
-    fetch-registry: true
-  instance:
-    preferIpAddress: true
-    instance-id: ${spring.application.name}:${random.uuid}
-
 management:
   endpoints:
     web:
