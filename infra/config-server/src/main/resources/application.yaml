@@ -11,6 +11,16 @@ spring:
       server:
         native:
           search-locations: classpath:/config
+    # Отключаем Discovery Client полностью
+    discovery:
+      enabled: false
+
+# Отключаем Eureka клиент
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
 
 management:
   endpoints:

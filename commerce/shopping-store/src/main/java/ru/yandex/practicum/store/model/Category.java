@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import ru.yandex.practicum.enums.ProductCategory;
 
 @Entity
-@Table(name = "categories", schema = "store_db")
+@Table(name = "categories")
 @Data
 @Builder
 @NoArgsConstructor

@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "products", schema = "store_db")
+@Table(name = "products")
 @Data
 @Builder
 @NoArgsConstructor
