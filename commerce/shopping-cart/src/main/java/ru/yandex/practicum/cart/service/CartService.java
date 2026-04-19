@@ -28,8 +28,6 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final WarehouseClient warehouseClient;
 
-    // ==================== Публичные методы API ====================
-
     public ShoppingCartDto getCart(String username) {
         validateUsername(username);
 
@@ -98,8 +96,10 @@ public class CartService {
         }
 
         // Повторная проверка склада после изменения
-        ShoppingCartDto checkCart = toDto(cart);
-        validateStockAvailability(checkCart);
+        if (!cart.getItems().isEmpty()) {
+            ShoppingCartDto checkCart = toDto(cart);
+            validateStockAvailability(checkCart);
+        }
 
         Cart saved = cartRepository.save(cart);
         return toDto(saved);
@@ -193,10 +193,6 @@ public class CartService {
 
     // ==================== Методы валидации ====================
 
-    /**
-     * Проверяет, что имя пользователя не пустое.
-     * Согласно ТЗ: "Имя пользователя не должно быть пустым"
-     */
     private void validateUsername(String username) {
         if (username == null || username.isBlank()) {
             log.warn("Validation failed: username is empty or null");
@@ -204,10 +200,6 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет, что корзина активна (не деактивирована).
-     * Согласно ТЗ: деактивированную корзину нельзя использовать для заказа
-     */
     private void validateCartIsActive(Cart cart) {
         if (cart.getState() == CartState.DEACTIVATE) {
             log.warn("Validation failed: cart is deactivated for user {}", cart.getUsername());
@@ -215,16 +207,12 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет, что карта товаров не пуста.
-     */
     private void validateProductsMap(Map<UUID, Long> products) {
         if (products == null || products.isEmpty()) {
             log.warn("Validation failed: products map is empty or null");
             throw new IllegalArgumentException("Products map cannot be empty");
         }
 
-        // Проверка, что все количества положительные
         for (Map.Entry<UUID, Long> entry : products.entrySet()) {
             if (entry.getValue() == null || entry.getValue() <= 0) {
                 log.warn("Validation failed: invalid quantity {} for product {}", entry.getValue(), entry.getKey());
@@ -233,9 +221,6 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет, что идентификатор товара не null.
-     */
     private void validateProductId(UUID productId) {
         if (productId == null) {
             log.warn("Validation failed: productId is null");
@@ -243,11 +228,6 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет, что количество товара корректно.
-     * newQuantity = 0 означает удаление товара (допустимо)
-     * newQuantity > 0 означает установку нового количества
-     */
     private void validateQuantity(Long newQuantity) {
         if (newQuantity == null) {
             log.warn("Validation failed: quantity is null");
@@ -259,16 +239,12 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет, что список идентификаторов товаров не пуст.
-     */
     private void validateProductIdsList(List<UUID> productIds) {
         if (productIds == null || productIds.isEmpty()) {
             log.warn("Validation failed: productIds list is empty or null");
             throw new IllegalArgumentException("Product IDs list cannot be empty");
         }
 
-        // Проверка, что все ID не null
         for (UUID id : productIds) {
             if (id == null) {
                 log.warn("Validation failed: productId in list is null");
@@ -277,30 +253,26 @@ public class CartService {
         }
     }
 
-    /**
-     * Проверяет доступность товаров на складе.
-     * Вызывает warehouse сервис через Feign клиент.
-     *
-     * @throws ProductInShoppingCartLowQuantityInWarehouse если товара недостаточно на складе
-     * @throws NoSpecifiedProductInWarehouseException если товар не найден на складе
-     * @throws RuntimeException если корзина пуста
-     */
     private void validateStockAvailability(ShoppingCartDto cart) {
         if (cart.getProducts() == null || cart.getProducts().isEmpty()) {
-            log.warn("Stock validation skipped: cart is empty");
-            throw new RuntimeException("Cannot validate stock for empty cart");
+            log.debug("Stock validation skipped: cart is empty");
+            return;
         }
 
         log.debug("Validating stock availability for cart: {}", cart.getShoppingCartId());
 
-        // Вызов warehouse сервиса через Feign клиент
-        // При недоступности warehouse сработает CircuitBreaker (WarehouseFallback)
-        BookedProductsDto result = warehouseClient.checkProductQuantityEnoughForShoppingCart(cart);
-
-        log.debug("Stock validation passed for cart {}. Weight: {}, Volume: {}, Fragile: {}",
-                cart.getShoppingCartId(),
-                result.getDeliveryWeight(),
-                result.getDeliveryVolume(),
-                result.getFragile());
+        try {
+            BookedProductsDto result = warehouseClient.checkProductQuantityEnoughForShoppingCart(cart);
+            log.debug("Stock validation passed for cart {}. Weight: {}, Volume: {}, Fragile: {}",
+                    cart.getShoppingCartId(),
+                    result.getDeliveryWeight(),
+                    result.getDeliveryVolume(),
+                    result.getFragile());
+        } catch (ProductInShoppingCartLowQuantityInWarehouse | NoSpecifiedProductInWarehouseException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error calling warehouse service: {}", e.getMessage());
+            throw new RuntimeException("Warehouse service is temporarily unavailable", e);
+        }
     }
 }
