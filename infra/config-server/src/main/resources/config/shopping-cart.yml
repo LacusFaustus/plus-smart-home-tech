@@ -1,5 +1,0 @@
-﻿spring:
-  application:
-    name: shopping-cart
-server:
-  port: 0

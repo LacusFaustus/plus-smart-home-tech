@@ -1,5 +1,0 @@
-﻿spring:
-  application:
-    name: warehouse
-server:
-  port: 0
