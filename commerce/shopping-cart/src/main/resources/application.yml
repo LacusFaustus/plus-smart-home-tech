@@ -1,15 +1,15 @@
 spring:
   application:
     name: shopping-cart
+  config:
+    import: optional:configserver:http://localhost:8888
   cloud:
     config:
       uri: http://localhost:8888
-      fail-fast: false
-  config:
-    import: optional:configserver:http://localhost:8888
+      fail-fast: true
 
 server:
-  port: 8082
+  port: 0
 
 eureka:
   client:
@@ -20,17 +20,6 @@ eureka:
   instance:
     preferIpAddress: true
     instance-id: ${spring.application.name}:${random.uuid}
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      warehouseService:
-        register-health-indicator: true
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        permitted-number-of-calls-in-half-open-state: 3
-        wait-duration-in-open-state: 10s
-        failure-rate-threshold: 50
 
 management:
   endpoints:

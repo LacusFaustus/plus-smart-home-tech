@@ -1,15 +1,16 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:shoppingcart;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS cart_db
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: jdbc:postgresql://postgres:5432/smarthome
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
     show-sql: true
 
 server:
@@ -23,15 +24,6 @@ eureka:
     preferIpAddress: true
     instance-id: ${spring.application.name}:${random.uuid}
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
-
 resilience4j:
   circuitbreaker:
     instances:
@@ -44,3 +36,12 @@ resilience4j:
         wait-duration-in-open-state: 10s
         failure-rate-threshold: 50
         event-consumer-buffer-size: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  endpoint:
+    health:
+      show-details: always

@@ -1,15 +1,16 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:warehouse;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS warehouse_db
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: jdbc:postgresql://postgres:5432/smarthome
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
     show-sql: true
 
 server:
@@ -28,6 +29,3 @@ management:
     web:
       exposure:
         include: health,info
-  endpoint:
-    health:
-      show-details: always
