@@ -1,24 +1,15 @@
-﻿spring:
+spring:
   datasource:
     url: jdbc:postgresql://postgres:5432/smarthome
     username: postgres
     password: postgres
-    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
     show-sql: true
-
 server:
   port: 8081
-
 eureka:
   client:
     serviceUrl:
       defaultZone: http://discovery-server:8761/eureka/
-  instance:
-    preferIpAddress: true
