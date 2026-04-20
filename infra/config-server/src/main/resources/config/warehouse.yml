@@ -1,11 +1,5 @@
-spring:
-  datasource:
-    url: jdbc:h2:mem:warehouse
-    username: sa
-    password: 
+﻿spring:
+  application:
+    name: warehouse
 server:
-  port: 8081
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+  port: 0
