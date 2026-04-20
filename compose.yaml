@@ -35,7 +35,7 @@ services:
     init: true
 
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15
     container_name: postgres
     ports:
       - "5432:5432"
