@@ -48,7 +48,7 @@ services:
       - ./commerce/schemas.sql:/docker-entrypoint-initdb.d/01-schemas.sql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
