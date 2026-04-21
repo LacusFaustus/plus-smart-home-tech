@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "carts", schema = "cart_db")
+@Table(name = "carts")
 @Data
 @Builder
 @NoArgsConstructor
