@@ -51,7 +51,7 @@ public class ProductService {
     }
 
     public ProductDto getProduct(UUID productId) {
-        Product product = productRepository.findByProductIdAndProductState(productId, ProductState.ACTIVE)
+        Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
         return productMapper.toDto(product);
     }
