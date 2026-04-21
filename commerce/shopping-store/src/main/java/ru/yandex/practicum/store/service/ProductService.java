@@ -60,7 +60,9 @@ public class ProductService {
     public ProductDto createProduct(ProductDto productDto) {
         Product product = productMapper.toEntity(productDto);
         product.setProductState(ProductState.ACTIVE);
-        product.setQuantityState(QuantityState.ENDED);
+        if (productDto.getQuantityState() == null) {
+            product.setQuantityState(QuantityState.ENDED);
+        }
         Product saved = productRepository.save(product);
         log.info("Created new product: id={}, name={}", saved.getProductId(), saved.getProductName());
         return productMapper.toDto(saved);
@@ -85,12 +87,13 @@ public class ProductService {
     }
 
     @Transactional
-    public void deactivateProduct(UUID productId) {
+    public ProductDto deactivateProduct(UUID productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
         product.setProductState(ProductState.DEACTIVATE);
-        productRepository.save(product);
+        Product saved = productRepository.save(product);
         log.info("Deactivated product: id={}", productId);
+        return productMapper.toDto(saved);
     }
 
     @Transactional

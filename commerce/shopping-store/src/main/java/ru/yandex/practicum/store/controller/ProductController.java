@@ -12,6 +12,7 @@ import ru.yandex.practicum.dto.shoppingstore.SetProductQuantityStateRequest;
 import ru.yandex.practicum.dto.shoppingstore.PageProductDto;
 import ru.yandex.practicum.dto.exceptions.ProductNotFoundException;
 import ru.yandex.practicum.enums.ProductCategory;
+import ru.yandex.practicum.enums.QuantityState;
 import ru.yandex.practicum.store.service.ProductService;
 
 import java.util.ArrayList;
@@ -29,9 +30,9 @@ public class ProductController implements ShoppingStoreClient {
     @GetMapping
     public PageProductDto getProducts(
             @RequestParam("category") String category,
-            @RequestParam("page") int page,
-            @RequestParam("size") int size,
-            @RequestParam("sort") List<String> sort) {
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "sort", required = false, defaultValue = "productName,asc") List<String> sort) {
         log.info("GET /api/v1/shopping-store: category={}, page={}, size={}, sort={}", category, page, size, sort);
         ProductCategory productCategory;
         try {
@@ -66,29 +67,34 @@ public class ProductController implements ShoppingStoreClient {
 
     @Override
     @PostMapping("/removeProductFromStore")
-    public boolean removeProductFromStore(@RequestBody UUID productId) {
+    public ProductDto removeProductFromStore(@RequestBody UUID productId) {
         log.info("POST /api/v1/shopping-store/removeProductFromStore: {}", productId);
-        productService.deactivateProduct(productId);
-        return true;
+        return productService.deactivateProduct(productId);
     }
 
     @Override
     @PostMapping("/quantityState")
-    public boolean setProductQuantityState(@RequestBody SetProductQuantityStateRequest request) {
-        log.info("POST /api/v1/shopping-store/quantityState: {}", request);
-        productService.updateQuantityState(request.getProductId(), request.getQuantityState());
+    public boolean setProductQuantityState(@RequestBody(required = false) SetProductQuantityStateRequest request,
+                                           @RequestParam(required = false) UUID productId,
+                                           @RequestParam(required = false) QuantityState quantityState) {
+        log.info("POST /api/v1/shopping-store/quantityState: request={}, productId={}, quantityState={}", request, productId, quantityState);
+
+        if (request != null) {
+            productService.updateQuantityState(request.getProductId(), request.getQuantityState());
+        } else if (productId != null && quantityState != null) {
+            productService.updateQuantityState(productId, quantityState);
+        } else {
+            throw new IllegalArgumentException("Either request body or query parameters productId and quantityState must be provided");
+        }
         return true;
     }
 
     private Sort parseSort(List<String> sortParams) {
-        log.info("parseSort called with: {}", sortParams);
         if (sortParams == null || sortParams.isEmpty()) {
             return Sort.unsorted();
         }
 
         List<Sort.Order> orders = new ArrayList<>();
-
-        // Проходим по параметрам, объединяя пары (поле, направление)
         for (int i = 0; i < sortParams.size(); i++) {
             String param = sortParams.get(i);
             if (param == null || param.trim().isEmpty()) {
@@ -98,12 +104,11 @@ public class ProductController implements ShoppingStoreClient {
             String property = param.trim();
             Sort.Direction direction = Sort.Direction.ASC;
 
-            // Если следующий параметр - это направление (ASC/DESC)
             if (i + 1 < sortParams.size()) {
                 String nextParam = sortParams.get(i + 1).trim().toUpperCase();
                 if (nextParam.equals("ASC") || nextParam.equals("DESC")) {
                     direction = Sort.Direction.fromString(nextParam);
-                    i++; // Пропускаем следующий параметр, так как мы его использовали
+                    i++;
                 }
             }
 
