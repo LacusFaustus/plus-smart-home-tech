@@ -81,35 +81,43 @@ public class ProductController implements ShoppingStoreClient {
     }
 
     private Sort parseSort(List<String> sortParams) {
+        log.info("parseSort called with: {}", sortParams);
         if (sortParams == null || sortParams.isEmpty()) {
+            log.info("sortParams is empty, returning unsorted");
             return Sort.unsorted();
         }
 
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : sortParams) {
+            log.info("Processing param: '{}'", param);
             if (param == null || param.trim().isEmpty()) {
+                log.info("param is empty, skipping");
                 continue;
             }
 
-            // Разделяем по запятой, удаляя пробелы вокруг
             String[] parts = param.split("\\s*,\\s*");
+            log.info("parts length: {}, parts[0]: '{}'", parts.length, parts[0]);
 
-            // parts[0] - это поле, parts[1] (если есть) - направление
             String property = parts[0].trim();
+            log.info("property: '{}'", property);
 
             Sort.Direction direction = Sort.Direction.ASC;
             if (parts.length > 1) {
                 String dirStr = parts[1].trim().toLowerCase();
+                log.info("dirStr: '{}'", dirStr);
                 if ("desc".equals(dirStr)) {
                     direction = Sort.Direction.DESC;
+                    log.info("direction set to DESC");
                 }
             }
 
-            // Добавляем ТОЛЬКО один order для каждого параметра
+            log.info("Adding order: property={}, direction={}", property, direction);
             orders.add(new Sort.Order(direction, property));
         }
 
-        return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
+        Sort result = orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
+        log.info("Final Sort: {}", result);
+        return result;
     }
 
     @ExceptionHandler(ProductNotFoundException.class)
