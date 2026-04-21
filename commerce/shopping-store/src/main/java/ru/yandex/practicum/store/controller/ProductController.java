@@ -84,26 +84,30 @@ public class ProductController implements ShoppingStoreClient {
         if (sortParams == null || sortParams.isEmpty()) {
             return Sort.unsorted();
         }
+
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : sortParams) {
-            // Регулярка для разделения по запятой с пробелами
+            if (param == null || param.trim().isEmpty()) {
+                continue;
+            }
+
+            // Разделяем по запятой, удаляя пробелы вокруг
             String[] parts = param.split("\\s*,\\s*");
-            if (parts.length == 0) continue;
+            String property = parts[0].trim();
 
-            String property = parts[0];
             Sort.Direction direction = Sort.Direction.ASC;
-
             if (parts.length > 1) {
-                String dir = parts[1].toLowerCase();
-                if ("desc".equals(dir)) {
+                String dirStr = parts[1].trim().toLowerCase();
+                if ("desc".equals(dirStr)) {
                     direction = Sort.Direction.DESC;
                 }
             }
 
+            log.debug("Adding sort order: property={}, direction={}", property, direction);
             orders.add(new Sort.Order(direction, property));
-            log.debug("Added sort order: property={}, direction={}", property, direction);
         }
-        return Sort.by(orders);
+
+        return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
     }
 
     @ExceptionHandler(ProductNotFoundException.class)
