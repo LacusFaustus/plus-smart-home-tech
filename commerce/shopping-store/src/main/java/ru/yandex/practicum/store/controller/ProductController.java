@@ -86,7 +86,6 @@ public class ProductController implements ShoppingStoreClient {
         }
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : sortParams) {
-            // Разделяем по запятой: "productName,DESC" -> ["productName", "DESC"]
             String[] parts = param.split(",");
             String property = parts[0].trim();
             Sort.Direction direction = Sort.Direction.ASC;
