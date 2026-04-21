@@ -83,31 +83,27 @@ public class ProductController implements ShoppingStoreClient {
     private Sort parseSort(List<String> sortParams) {
         log.info("parseSort called with: {}", sortParams);
         if (sortParams == null || sortParams.isEmpty()) {
-            log.info("sortParams is empty, returning unsorted");
             return Sort.unsorted();
         }
 
         List<Sort.Order> orders = new ArrayList<>();
-        for (String param : sortParams) {
-            log.info("Processing param: '{}'", param);
+
+        // Проходим по параметрам, объединяя пары (поле, направление)
+        for (int i = 0; i < sortParams.size(); i++) {
+            String param = sortParams.get(i);
             if (param == null || param.trim().isEmpty()) {
-                log.info("param is empty, skipping");
                 continue;
             }
 
-            String[] parts = param.split("\\s*,\\s*");
-            log.info("parts length: {}, parts[0]: '{}'", parts.length, parts[0]);
-
-            String property = parts[0].trim();
-            log.info("property: '{}'", property);
-
+            String property = param.trim();
             Sort.Direction direction = Sort.Direction.ASC;
-            if (parts.length > 1) {
-                String dirStr = parts[1].trim().toLowerCase();
-                log.info("dirStr: '{}'", dirStr);
-                if ("desc".equals(dirStr)) {
-                    direction = Sort.Direction.DESC;
-                    log.info("direction set to DESC");
+
+            // Если следующий параметр - это направление (ASC/DESC)
+            if (i + 1 < sortParams.size()) {
+                String nextParam = sortParams.get(i + 1).trim().toUpperCase();
+                if (nextParam.equals("ASC") || nextParam.equals("DESC")) {
+                    direction = Sort.Direction.fromString(nextParam);
+                    i++; // Пропускаем следующий параметр, так как мы его использовали
                 }
             }
 
