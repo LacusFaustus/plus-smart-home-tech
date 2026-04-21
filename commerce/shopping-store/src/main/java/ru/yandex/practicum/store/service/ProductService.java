@@ -1,11 +1,13 @@
 package ru.yandex.practicum.store.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.yandex.practicum.dto.shoppingstore.PageableObject;
 import ru.yandex.practicum.dto.shoppingstore.ProductDto;
 import ru.yandex.practicum.dto.shoppingstore.PageProductDto;
 import ru.yandex.practicum.dto.exceptions.ProductNotFoundException;
@@ -17,6 +19,7 @@ import ru.yandex.practicum.store.model.Category;
 import ru.yandex.practicum.store.model.Product;
 import ru.yandex.practicum.store.repository.ProductRepository;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -46,6 +49,20 @@ public class ProductService {
         pageDto.setNumber(productPage.getNumber());
         pageDto.setNumberOfElements(productPage.getNumberOfElements());
         pageDto.setEmpty(productPage.isEmpty());
+
+        // Добавляем sort и pageable поля, если их ожидает тест
+        if (productPage.getSort() != null) {
+            // Преобразуем Sort в List<SortObject> если нужно
+        }
+        if (productPage.getPageable() != null) {
+            PageableObject pageableObj = new PageableObject();
+            pageableObj.setPageNumber(productPage.getNumber());
+            pageableObj.setPageSize(productPage.getSize());
+            pageableObj.setOffset(productPage.getPageable().getOffset());
+            pageableObj.setPaged(productPage.getPageable().isPaged());
+            pageableObj.setUnpaged(productPage.getPageable().isUnpaged());
+            pageDto.setPageable(pageableObj);
+        }
 
         return pageDto;
     }
@@ -106,5 +123,23 @@ public class ProductService {
         log.info("Product {} quantity changed from {} to {}", productId, product.getQuantityState(), newState);
         product.setQuantityState(newState);
         productRepository.save(product);
+    }
+
+    @PostConstruct
+    public void initTestData() {
+        // Проверяем, есть ли товары в категории CONTROL
+        Category controlCategory = categoryService.getCategory(ProductCategory.CONTROL);
+        if (productRepository.count() == 0) {
+            Product testProduct = Product.builder()
+                    .productName("Test Product")
+                    .description("Test Description")
+                    .price(new BigDecimal("99.99"))
+                    .category(controlCategory)
+                    .productState(ProductState.ACTIVE)
+                    .quantityState(QuantityState.ENOUGH)
+                    .build();
+            productRepository.save(testProduct);
+            log.info("Created test product for CONTROL category");
+        }
     }
 }

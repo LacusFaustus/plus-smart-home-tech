@@ -21,4 +21,6 @@ public class PageProductDto {
     private int number;
     private int numberOfElements;
     private boolean empty;
+    private PageableObject pageable;
+    private List<SortObject> sort;
 }
