@@ -87,10 +87,24 @@ public class ProductController implements ShoppingStoreClient {
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : sortParams) {
             String[] parts = param.split(",");
-            String property = parts[0];
-            Sort.Direction direction = parts.length > 1 && parts[1].equalsIgnoreCase("desc")
-                    ? Sort.Direction.DESC : Sort.Direction.ASC;
-            orders.add(new Sort.Order(direction, property));
+            if (parts.length == 0) continue;
+
+            String property = parts[0].trim();
+            Sort.Direction direction = Sort.Direction.ASC;
+
+            if (parts.length > 1) {
+                if (parts[1].trim().equalsIgnoreCase("desc")) {
+                    direction = Sort.Direction.DESC;
+                } else if (parts[1].trim().equalsIgnoreCase("asc")) {
+                    direction = Sort.Direction.ASC;
+                }
+            }
+
+            try {
+                orders.add(new Sort.Order(direction, property));
+            } catch (Exception e) {
+                log.warn("Invalid sort property: {}", property);
+            }
         }
         return Sort.by(orders);
     }
