@@ -86,14 +86,22 @@ public class ProductController implements ShoppingStoreClient {
         }
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : sortParams) {
-            // Разделяем по запятой: "productName,DESC" -> ["productName", "DESC"]
-            String[] parts = param.split(",");
-            String property = parts[0].trim();
+            // Регулярка для разделения по запятой с пробелами
+            String[] parts = param.split("\\s*,\\s*");
+            if (parts.length == 0) continue;
+
+            String property = parts[0];
             Sort.Direction direction = Sort.Direction.ASC;
-            if (parts.length > 1 && parts[1].trim().equalsIgnoreCase("desc")) {
-                direction = Sort.Direction.DESC;
+
+            if (parts.length > 1) {
+                String dir = parts[1].toLowerCase();
+                if ("desc".equals(dir)) {
+                    direction = Sort.Direction.DESC;
+                }
             }
+
             orders.add(new Sort.Order(direction, property));
+            log.debug("Added sort order: property={}, direction={}", property, direction);
         }
         return Sort.by(orders);
     }
