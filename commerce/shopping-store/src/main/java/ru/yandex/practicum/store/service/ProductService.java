@@ -34,32 +34,6 @@ public class ProductService {
     private final ProductMapper productMapper;
     private final CategoryService categoryService;
 
-    @PostConstruct
-    public void initTestData() {
-        new Thread(() -> {
-            try {
-                Thread.sleep(5000);
-                Category controlCategory = categoryService.getCategory(ProductCategory.CONTROL);
-                long count = productRepository.count();
-                if (count == 0) {
-                    Product testProduct = Product.builder()
-                            .productName("TEST_PRODUCT_FOR_API_TEST")
-                            .description("Auto-generated test product")
-                            .price(new BigDecimal("99.99"))
-                            .category(controlCategory)
-                            .productState(ProductState.ACTIVE)
-                            .quantityState(QuantityState.ENOUGH)
-                            .imageSrc("test/image/src")
-                            .build();
-                    productRepository.save(testProduct);
-                    log.info("Created test product for CONTROL category to pass API tests");
-                }
-            } catch (Exception e) {
-                log.warn("Failed to create test product: {}", e.getMessage());
-            }
-        }).start();
-    }
-
     public PageProductDto getProducts(ProductCategory categoryName, Pageable pageable) {
         Category category = categoryService.getCategory(categoryName);
         Page<Product> productPage = productRepository.findByCategoryAndProductState(
