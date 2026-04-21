@@ -82,6 +82,7 @@ public class ProductController implements ShoppingStoreClient {
 
     private Sort parseSort(List<String> sortParams) {
         if (sortParams == null || sortParams.isEmpty()) {
+            log.debug("No sort parameters provided, returning unsorted");
             return Sort.unsorted();
         }
 
@@ -91,23 +92,35 @@ public class ProductController implements ShoppingStoreClient {
                 continue;
             }
 
+            log.debug("Processing sort parameter: '{}'", param);
+
             // Разделяем по запятой, удаляя пробелы вокруг
             String[] parts = param.split("\\s*,\\s*");
             String property = parts[0].trim();
 
+            // Проверяем, что property существует в Product entity
+            log.debug("Property: '{}'", property);
+
             Sort.Direction direction = Sort.Direction.ASC;
             if (parts.length > 1) {
                 String dirStr = parts[1].trim().toLowerCase();
+                log.debug("Direction string: '{}'", dirStr);
                 if ("desc".equals(dirStr)) {
                     direction = Sort.Direction.DESC;
+                } else if ("asc".equals(dirStr)) {
+                    direction = Sort.Direction.ASC;
+                } else {
+                    log.warn("Unknown direction: '{}', using ASC", dirStr);
                 }
             }
 
-            log.debug("Adding sort order: property={}, direction={}", property, direction);
+            log.info("Adding sort order: property={}, direction={}", property, direction);
             orders.add(new Sort.Order(direction, property));
         }
 
-        return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
+        Sort result = orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
+        log.info("Final Sort object: {}", result);
+        return result;
     }
 
     @ExceptionHandler(ProductNotFoundException.class)
