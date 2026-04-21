@@ -26,7 +26,12 @@ public class ProductController implements ShoppingStoreClient {
     private final ProductService productService;
 
     @Override
-    public PageProductDto getProducts(String category, int page, int size, List<String> sort) {
+    @GetMapping
+    public PageProductDto getProducts(
+            @RequestParam("category") String category,
+            @RequestParam("page") int page,
+            @RequestParam("size") int size,
+            @RequestParam("sort") List<String> sort) {
         log.info("GET /api/v1/shopping-store: category={}, page={}, size={}, sort={}", category, page, size, sort);
         ProductCategory productCategory;
         try {
@@ -34,28 +39,33 @@ public class ProductController implements ShoppingStoreClient {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid category: " + category);
         }
-        return productService.getProducts(productCategory, PageRequest.of(page, size, parseSort(sort)));
+        Sort sortObj = parseSort(sort);
+        return productService.getProducts(productCategory, PageRequest.of(page, size, sortObj));
     }
 
     @Override
+    @GetMapping("/{productId}")
     public ProductDto getProduct(@PathVariable("productId") UUID productId) {
         log.info("GET /api/v1/shopping-store/{}", productId);
         return productService.getProduct(productId);
     }
 
     @Override
+    @PutMapping
     public ProductDto createNewProduct(@RequestBody ProductDto product) {
         log.info("PUT /api/v1/shopping-store: {}", product);
         return productService.createProduct(product);
     }
 
     @Override
+    @PostMapping
     public ProductDto updateProduct(@RequestBody ProductDto product) {
         log.info("POST /api/v1/shopping-store: {}", product);
         return productService.updateProduct(product);
     }
 
     @Override
+    @PostMapping("/removeProductFromStore")
     public boolean removeProductFromStore(@RequestBody UUID productId) {
         log.info("POST /api/v1/shopping-store/removeProductFromStore: {}", productId);
         productService.deactivateProduct(productId);
@@ -63,6 +73,7 @@ public class ProductController implements ShoppingStoreClient {
     }
 
     @Override
+    @PostMapping("/quantityState")
     public boolean setProductQuantityState(@RequestBody SetProductQuantityStateRequest request) {
         log.info("POST /api/v1/shopping-store/quantityState: {}", request);
         productService.updateQuantityState(request.getProductId(), request.getQuantityState());

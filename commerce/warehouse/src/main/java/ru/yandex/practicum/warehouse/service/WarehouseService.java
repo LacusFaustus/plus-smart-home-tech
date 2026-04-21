@@ -41,7 +41,11 @@ public class WarehouseService {
 
     public BookedProductsDto checkAvailability(ShoppingCartDto cart) {
         if (cart.getProducts() == null || cart.getProducts().isEmpty()) {
-            throw new RuntimeException("Shopping cart is empty");
+            return BookedProductsDto.builder()
+                    .deliveryWeight(0.0)
+                    .deliveryVolume(0.0)
+                    .fragile(false)
+                    .build();
         }
 
         double totalWeight = 0.0;

@@ -30,10 +30,7 @@ public class CartService {
 
     public ShoppingCartDto getCart(String username) {
         validateUsername(username);
-
-        Cart cart = cartRepository.findByUsername(username)
-                .orElseGet(() -> createNewCart(username));
-
+        Cart cart = getOrCreateCart(username);
         log.info("Retrieved cart for user: {}", username);
         return toDto(cart);
     }
@@ -42,22 +39,29 @@ public class CartService {
     public ShoppingCartDto addProducts(String username, Map<UUID, Long> newProducts) {
         validateUsername(username);
         validateProductsMap(newProducts);
-
         Cart cart = getOrCreateCart(username);
         validateCartIsActive(cart);
 
-        // Формируем полную корзину с новыми товарами для проверки склада
         Map<UUID, Long> fullCartMap = getCurrentProducts(cart);
         newProducts.forEach((id, qty) -> fullCartMap.merge(id, qty, Long::sum));
 
-        // Проверка наличия товаров на складе
         ShoppingCartDto checkCart = ShoppingCartDto.builder()
                 .shoppingCartId(cart.getShoppingCartId())
                 .products(fullCartMap)
                 .build();
-        validateStockAvailability(checkCart);
 
-        // Добавляем товары в корзину
+        try {
+            BookedProductsDto result = warehouseClient.checkProductQuantityEnoughForShoppingCart(checkCart);
+            log.debug("Stock validation passed: weight={}, volume={}, fragile={}",
+                    result.getDeliveryWeight(), result.getDeliveryVolume(), result.getFragile());
+        } catch (Exception e) {
+            log.warn("Warehouse service unavailable or validation failed: {}", e.getMessage());
+            if (e instanceof ProductInShoppingCartLowQuantityInWarehouse ||
+                    e instanceof NoSpecifiedProductInWarehouseException) {
+                throw e;
+            }
+        }
+
         for (Map.Entry<UUID, Long> entry : newProducts.entrySet()) {
             addOrUpdateItem(cart, entry.getKey(), entry.getValue());
         }
@@ -72,11 +76,9 @@ public class CartService {
         validateUsername(username);
         validateProductId(productId);
         validateQuantity(newQuantity);
-
         Cart cart = getOrCreateCart(username);
         validateCartIsActive(cart);
 
-        // Проверяем, что товар есть в корзине
         CartItem existingItem = cart.getItems().stream()
                 .filter(item -> item.getProductId().equals(productId))
                 .findFirst()
@@ -85,7 +87,6 @@ public class CartService {
                     return new NoProductsInShoppingCartException(productId);
                 });
 
-        // Обновляем количество (если 0 или null - удаляем)
         if (newQuantity == 0) {
             cart.getItems().remove(existingItem);
             cartItemRepository.delete(existingItem);
@@ -95,10 +96,13 @@ public class CartService {
             log.info("Changed quantity for user {}: productId={}, newQuantity={}", username, productId, newQuantity);
         }
 
-        // Повторная проверка склада после изменения
         if (!cart.getItems().isEmpty()) {
             ShoppingCartDto checkCart = toDto(cart);
-            validateStockAvailability(checkCart);
+            try {
+                warehouseClient.checkProductQuantityEnoughForShoppingCart(checkCart);
+            } catch (Exception e) {
+                log.warn("Warehouse validation after quantity change failed: {}", e.getMessage());
+            }
         }
 
         Cart saved = cartRepository.save(cart);
@@ -109,10 +113,8 @@ public class CartService {
     public ShoppingCartDto removeProducts(String username, List<UUID> productIds) {
         validateUsername(username);
         validateProductIdsList(productIds);
-
         Cart cart = getOrCreateCart(username);
 
-        // Проверяем, что хотя бы один товар из списка есть в корзине
         boolean hasAnyProduct = cart.getItems().stream()
                 .anyMatch(item -> productIds.contains(item.getProductId()));
 
@@ -121,13 +123,11 @@ public class CartService {
             throw new NoProductsInShoppingCartException(productIds.get(0));
         }
 
-        // Удаляем товары
         int deletedCount = cartItemRepository.deleteByCartIdAndProductIds(
                 cart.getShoppingCartId(), productIds
         );
 
         cart.getItems().removeIf(item -> productIds.contains(item.getProductId()));
-
         log.info("Removed {} products from cart for user {}: {}", deletedCount, username, productIds);
         return toDto(cart);
     }
@@ -135,15 +135,11 @@ public class CartService {
     @Transactional
     public void deactivateCart(String username) {
         validateUsername(username);
-
         Cart cart = getOrCreateCart(username);
         cart.setState(CartState.DEACTIVATE);
         cartRepository.save(cart);
-
         log.info("Deactivated cart for user: {}", username);
     }
-
-    // ==================== Приватные вспомогательные методы ====================
 
     private Cart createNewCart(String username) {
         Cart cart = Cart.builder()
@@ -191,8 +187,6 @@ public class CartService {
                 .build();
     }
 
-    // ==================== Методы валидации ====================
-
     private void validateUsername(String username) {
         if (username == null || username.isBlank()) {
             log.warn("Validation failed: username is empty or null");
@@ -212,7 +206,6 @@ public class CartService {
             log.warn("Validation failed: products map is empty or null");
             throw new IllegalArgumentException("Products map cannot be empty");
         }
-
         for (Map.Entry<UUID, Long> entry : products.entrySet()) {
             if (entry.getValue() == null || entry.getValue() <= 0) {
                 log.warn("Validation failed: invalid quantity {} for product {}", entry.getValue(), entry.getKey());
@@ -244,35 +237,11 @@ public class CartService {
             log.warn("Validation failed: productIds list is empty or null");
             throw new IllegalArgumentException("Product IDs list cannot be empty");
         }
-
         for (UUID id : productIds) {
             if (id == null) {
                 log.warn("Validation failed: productId in list is null");
                 throw new IllegalArgumentException("Product ID in list cannot be null");
             }
-        }
-    }
-
-    private void validateStockAvailability(ShoppingCartDto cart) {
-        if (cart.getProducts() == null || cart.getProducts().isEmpty()) {
-            log.debug("Stock validation skipped: cart is empty");
-            return;
-        }
-
-        log.debug("Validating stock availability for cart: {}", cart.getShoppingCartId());
-
-        try {
-            BookedProductsDto result = warehouseClient.checkProductQuantityEnoughForShoppingCart(cart);
-            log.debug("Stock validation passed for cart {}. Weight: {}, Volume: {}, Fragile: {}",
-                    cart.getShoppingCartId(),
-                    result.getDeliveryWeight(),
-                    result.getDeliveryVolume(),
-                    result.getFragile());
-        } catch (ProductInShoppingCartLowQuantityInWarehouse | NoSpecifiedProductInWarehouseException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Error calling warehouse service: {}", e.getMessage());
-            throw new RuntimeException("Warehouse service is temporarily unavailable", e);
         }
     }
 }

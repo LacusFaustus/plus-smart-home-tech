@@ -20,12 +20,14 @@ public class CartController implements ShoppingCartClient {
     private final CartService cartService;
 
     @Override
+    @GetMapping
     public ShoppingCartDto getShoppingCart(@RequestParam("username") String username) {
         log.info("GET /api/v1/shopping-cart: username={}", username);
         return cartService.getCart(username);
     }
 
     @Override
+    @PutMapping
     public ShoppingCartDto addProductToShoppingCart(
             @RequestParam("username") String username,
             @RequestBody Map<String, Long> products) {
@@ -35,12 +37,14 @@ public class CartController implements ShoppingCartClient {
     }
 
     @Override
+    @DeleteMapping
     public void deactivateCurrentShoppingCart(@RequestParam("username") String username) {
         log.info("DELETE /api/v1/shopping-cart: username={}", username);
         cartService.deactivateCart(username);
     }
 
     @Override
+    @PostMapping("/remove")
     public ShoppingCartDto removeFromShoppingCart(
             @RequestParam("username") String username,
             @RequestBody List<UUID> productIds) {
@@ -49,6 +53,7 @@ public class CartController implements ShoppingCartClient {
     }
 
     @Override
+    @PostMapping("/change-quantity")
     public ShoppingCartDto changeProductQuantity(
             @RequestParam("username") String username,
             @RequestBody ChangeProductQuantityRequest request) {
