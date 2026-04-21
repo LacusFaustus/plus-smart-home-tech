@@ -7,9 +7,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.yandex.practicum.dto.shoppingstore.PageableObject;
 import ru.yandex.practicum.dto.shoppingstore.ProductDto;
 import ru.yandex.practicum.dto.shoppingstore.PageProductDto;
 import ru.yandex.practicum.dto.exceptions.ProductNotFoundException;
+import ru.yandex.practicum.dto.shoppingstore.SortObject;
 import ru.yandex.practicum.enums.ProductCategory;
 import ru.yandex.practicum.enums.ProductState;
 import ru.yandex.practicum.enums.QuantityState;
@@ -19,6 +21,8 @@ import ru.yandex.practicum.store.model.Product;
 import ru.yandex.practicum.store.repository.ProductRepository;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -74,6 +78,28 @@ public class ProductService {
         pageDto.setNumber(productPage.getNumber());
         pageDto.setNumberOfElements(productPage.getNumberOfElements());
         pageDto.setEmpty(productPage.isEmpty());
+
+        // Заполняем pageable
+        PageableObject pageableObj = new PageableObject();
+        pageableObj.setPageNumber(productPage.getNumber());
+        pageableObj.setPageSize(productPage.getSize());
+        pageableObj.setOffset(productPage.getPageable().getOffset());
+        pageableObj.setPaged(productPage.getPageable().isPaged());
+        pageableObj.setUnpaged(productPage.getPageable().isUnpaged());
+        pageDto.setPageable(pageableObj);
+
+        // Заполняем sort
+        if (productPage.getSort() != null) {
+            List<SortObject> sortObjects = new ArrayList<>();
+            productPage.getSort().forEach(order -> {
+                SortObject sortObj = new SortObject();
+                sortObj.setProperty(order.getProperty());
+                sortObj.setDirection(order.getDirection().name());
+                sortObj.setAscending(order.isAscending());
+                sortObjects.add(sortObj);
+            });
+            pageDto.setSort(sortObjects);
+        }
 
         return pageDto;
     }

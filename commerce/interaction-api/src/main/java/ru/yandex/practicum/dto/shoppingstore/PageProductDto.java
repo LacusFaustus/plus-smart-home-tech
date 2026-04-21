@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -12,7 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PageProductDto {
-    private List<ProductDto> content;
+    private List<ProductDto> content = new ArrayList<>();
     private long totalElements;
     private int totalPages;
     private boolean first;
@@ -21,6 +22,6 @@ public class PageProductDto {
     private int number;
     private int numberOfElements;
     private boolean empty;
-    private PageableObject pageable;
-    private List<SortObject> sort;
+    private PageableObject pageable = new PageableObject();
+    private List<SortObject> sort = new ArrayList<>();
 }
