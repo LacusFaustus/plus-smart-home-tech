@@ -59,7 +59,10 @@ public class ProductService {
     @Transactional
     public ProductDto createProduct(ProductDto productDto) {
         Product product = productMapper.toEntity(productDto);
-        product.setProductState(ProductState.ACTIVE);
+        // Не перезаписываем productState, если он передан
+        if (productDto.getProductState() == null) {
+            product.setProductState(ProductState.ACTIVE);
+        }
         if (productDto.getQuantityState() == null) {
             product.setQuantityState(QuantityState.ENDED);
         }
