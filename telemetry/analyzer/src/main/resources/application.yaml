@@ -1,0 +1,112 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:default}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: default
+  application:
+    name: analyzer
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smarthome
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+    defer-datasource-initialization: false
+  sql:
+    init:
+      mode: never
+
+grpc:
+  client:
+    hub-router:
+      address: 'static://localhost:59090'
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+      maxInboundMessageSize: 10485760
+
+kafka:
+  bootstrap-servers: localhost:9092
+  consumer:
+    hub-events:
+      group-id: analyzer-hub-events-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+    snapshots:
+      group-id: analyzer-snapshots-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+  topics:
+    hub-events: telemetry.hubs.v1
+    snapshots: telemetry.snapshots.v1
+
+logging:
+  level:
+    ru.yandex.practicum: DEBUG
+    org.hibernate.SQL: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: ci
+  application:
+    name: analyzer
+  datasource:
+    url: jdbc:postgresql://postgres:5432/smarthome
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+grpc:
+  client:
+    hub-router:
+      address: 'static://hub-router:59090'
+      enableKeepAlive: true
+      keepAliveWithoutCalls: true
+      negotiationType: plaintext
+      maxInboundMessageSize: 10485760
+
+kafka:
+  bootstrap-servers: kafka:29092
+  consumer:
+    hub-events:
+      group-id: analyzer-hub-events-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+    snapshots:
+      group-id: analyzer-snapshots-group
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 10
+  topics:
+    hub-events: telemetry.hubs.v1
+    snapshots: telemetry.snapshots.v1
+
+logging:
+  level:
+    ru.yandex.practicum: DEBUG
+    io.grpc: DEBUG
+    net.devh: DEBUG
