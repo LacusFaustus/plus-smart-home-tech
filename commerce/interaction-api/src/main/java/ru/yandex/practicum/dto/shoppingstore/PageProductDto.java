@@ -13,7 +13,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PageProductDto {
+    @Builder.Default
     private List<ProductDto> content = new ArrayList<>();
+
     private long totalElements;
     private int totalPages;
     private boolean first;
@@ -22,6 +24,10 @@ public class PageProductDto {
     private int number;
     private int numberOfElements;
     private boolean empty;
+
+    @Builder.Default
     private PageableObject pageable = new PageableObject();
+
+    @Builder.Default
     private List<SortObject> sort = new ArrayList<>();
 }

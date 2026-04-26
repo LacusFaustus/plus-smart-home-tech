@@ -17,7 +17,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <!-- <module>telemetry</module> -->
+        <module>telemetry</module>
         <module>infra</module>
         <module>commerce</module>
     </modules>
