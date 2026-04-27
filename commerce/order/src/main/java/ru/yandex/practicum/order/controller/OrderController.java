@@ -2,10 +2,8 @@ package ru.yandex.practicum.order.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.client.OrderClient;
-import ru.yandex.practicum.dto.exceptions.NoOrderFoundException;
 import ru.yandex.practicum.dto.order.OrderDto;
 import ru.yandex.practicum.dto.order.CreateNewOrderRequest;
 import ru.yandex.practicum.dto.order.ProductReturnRequest;
@@ -104,27 +102,4 @@ public class OrderController implements OrderClient {
         log.info("POST /api/v1/order/assembly/failed: orderId={}", orderId);
         return orderService.assemblyFailed(orderId);
     }
-
-    @ExceptionHandler(NoOrderFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorResponse handleNoOrderFound(NoOrderFoundException ex) {
-        log.error("Order not found: {}", ex.getMessage());
-        return new ErrorResponse(ex.getUserMessage());
-    }
-
-    @ExceptionHandler(IllegalStateException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleIllegalState(IllegalStateException ex) {
-        log.error("Illegal state: {}", ex.getMessage());
-        return new ErrorResponse(ex.getMessage());
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleIllegalArgument(IllegalArgumentException ex) {
-        log.error("Illegal argument: {}", ex.getMessage());
-        return new ErrorResponse(ex.getMessage());
-    }
-
-    record ErrorResponse(String message) {}
 }

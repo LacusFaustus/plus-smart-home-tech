@@ -18,7 +18,7 @@ public class OrderDto {
     private Map<UUID, Long> products;
     private UUID paymentId;
     private UUID deliveryId;
-    private String state;  // OrderState enum as string
+    private String state;
     private Double deliveryWeight;
     private Double deliveryVolume;
     private Boolean fragile;

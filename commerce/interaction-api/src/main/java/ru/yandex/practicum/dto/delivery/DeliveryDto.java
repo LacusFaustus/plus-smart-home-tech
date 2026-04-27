@@ -17,5 +17,5 @@ public class DeliveryDto {
     private AddressDto fromAddress;
     private AddressDto toAddress;
     private UUID orderId;
-    private String deliveryState;  // DeliveryState enum
+    private String deliveryState;
 }

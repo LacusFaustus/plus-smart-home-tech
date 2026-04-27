@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import ru.yandex.practicum.enums.PaymentState;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -22,9 +23,9 @@ public class Payment {
 
     private UUID orderId;
 
-    private Double totalPayment;
-    private Double deliveryTotal;
-    private Double feeTotal;
+    private BigDecimal totalPayment;
+    private BigDecimal deliveryTotal;
+    private BigDecimal feeTotal;
 
     @Enumerated(EnumType.STRING)
     private PaymentState state;

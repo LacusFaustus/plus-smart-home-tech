@@ -14,6 +14,8 @@ import ru.yandex.practicum.dto.order.OrderDto;
 import ru.yandex.practicum.dto.warehouse.ShippedToDeliveryRequest;
 import ru.yandex.practicum.enums.DeliveryState;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Service
@@ -25,11 +27,15 @@ public class DeliveryService {
     private final WarehouseDeliveryFeignClient warehouseClient;
     private final OrderDeliveryFeignClient orderClient;
 
-    private static final double BASE_COST = 5.0;
-    private static final double FRAGILE_MULTIPLIER = 0.2;
-    private static final double WEIGHT_MULTIPLIER = 0.3;
-    private static final double VOLUME_MULTIPLIER = 0.2;
-    private static final double ADDRESS_MISMATCH_MULTIPLIER = 0.2;
+    private static final BigDecimal BASE_COST = BigDecimal.valueOf(5.0);
+    private static final BigDecimal ADDRESS_1_MULTIPLIER = BigDecimal.valueOf(1.0);
+    private static final BigDecimal ADDRESS_2_MULTIPLIER = BigDecimal.valueOf(2.0);
+    private static final BigDecimal FRAGILE_MULTIPLIER = BigDecimal.valueOf(0.2);
+    private static final BigDecimal WEIGHT_MULTIPLIER = BigDecimal.valueOf(0.3);
+    private static final BigDecimal VOLUME_MULTIPLIER = BigDecimal.valueOf(0.2);
+    private static final BigDecimal ADDRESS_MISMATCH_MULTIPLIER = BigDecimal.valueOf(0.2);
+    private static final String ADDRESS_1 = "ADDRESS_1";
+    private static final String ADDRESS_2 = "ADDRESS_2";
 
     @Transactional
     public DeliveryDto planDelivery(DeliveryDto deliveryDto) {
@@ -45,43 +51,42 @@ public class DeliveryService {
         return deliveryMapper.toDto(delivery);
     }
 
-    public Double deliveryCost(OrderDto order) {
+    public BigDecimal deliveryCost(OrderDto order) {
         Delivery delivery = deliveryRepository.findByOrderId(order.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Delivery not found for order: " + order.getOrderId()));
 
-        // Расчет по алгоритму из ТЗ
-        double cost = BASE_COST;
+        BigDecimal cost = BASE_COST;
 
-        // Учет адреса склада (fromAddress)
         String fromAddressKey = delivery.getFromAddress().getCountry();
-        if (fromAddressKey != null && fromAddressKey.contains("ADDRESS_2")) {
-            cost = cost * 2 + BASE_COST;  // умножаем на 2 и складываем с базовой
+        if (ADDRESS_2.equals(fromAddressKey)) {
+            cost = cost.multiply(ADDRESS_2_MULTIPLIER).add(BASE_COST);
         }
 
-        // Хрупкость
         if (Boolean.TRUE.equals(order.getFragile())) {
-            cost += cost * FRAGILE_MULTIPLIER;
+            cost = cost.add(cost.multiply(FRAGILE_MULTIPLIER));
         }
 
-        // Вес
-        Double weight = order.getDeliveryWeight();
-        if (weight != null && weight > 0) {
-            cost += weight * WEIGHT_MULTIPLIER;
+        BigDecimal weight = order.getDeliveryWeight() != null
+                ? BigDecimal.valueOf(order.getDeliveryWeight())
+                : BigDecimal.ZERO;
+        if (weight.compareTo(BigDecimal.ZERO) > 0) {
+            cost = cost.add(weight.multiply(WEIGHT_MULTIPLIER));
         }
 
-        // Объем
-        Double volume = order.getDeliveryVolume();
-        if (volume != null && volume > 0) {
-            cost += volume * VOLUME_MULTIPLIER;
+        BigDecimal volume = order.getDeliveryVolume() != null
+                ? BigDecimal.valueOf(order.getDeliveryVolume())
+                : BigDecimal.ZERO;
+        if (volume.compareTo(BigDecimal.ZERO) > 0) {
+            cost = cost.add(volume.multiply(VOLUME_MULTIPLIER));
         }
 
-        // Адрес доставки (сравниваем улицы)
         String fromStreet = delivery.getFromAddress().getStreet();
         String toStreet = delivery.getToAddress().getStreet();
         if (fromStreet != null && toStreet != null && !fromStreet.equals(toStreet)) {
-            cost += cost * ADDRESS_MISMATCH_MULTIPLIER;
+            cost = cost.add(cost.multiply(ADDRESS_MISMATCH_MULTIPLIER));
         }
 
+        cost = cost.setScale(2, RoundingMode.HALF_UP);
         log.info("Delivery cost calculated for order {}: {}", order.getOrderId(), cost);
         return cost;
     }
@@ -91,17 +96,16 @@ public class DeliveryService {
         Delivery delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new RuntimeException("Delivery not found for order: " + orderId));
 
-        // Проверяем, что доставка в процессе
         if (delivery.getDeliveryState() != DeliveryState.IN_PROGRESS) {
-            throw new IllegalStateException("Delivery must be IN_PROGRESS to mark as successful, current state: " + delivery.getDeliveryState());
+            throw new IllegalStateException(
+                    String.format("Delivery must be IN_PROGRESS to mark as successful, current state: %s",
+                            delivery.getDeliveryState()));
         }
 
         delivery.setDeliveryState(DeliveryState.DELIVERED);
         deliveryRepository.save(delivery);
 
-        // Уведомляем order
         orderClient.delivery(orderId);
-
         log.info("Delivery successful for order: {}", orderId);
     }
 
@@ -110,15 +114,15 @@ public class DeliveryService {
         Delivery delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new RuntimeException("Delivery not found for order: " + orderId));
 
-        // Проверяем, что доставка создана
         if (delivery.getDeliveryState() != DeliveryState.CREATED) {
-            throw new IllegalStateException("Delivery must be CREATED to start, current state: " + delivery.getDeliveryState());
+            throw new IllegalStateException(
+                    String.format("Delivery must be CREATED to start, current state: %s",
+                            delivery.getDeliveryState()));
         }
 
         delivery.setDeliveryState(DeliveryState.IN_PROGRESS);
         delivery = deliveryRepository.save(delivery);
 
-        // Уведомляем warehouse, что товары переданы в доставку
         ShippedToDeliveryRequest request = ShippedToDeliveryRequest.builder()
                 .orderId(orderId)
                 .deliveryId(delivery.getDeliveryId())
@@ -133,17 +137,17 @@ public class DeliveryService {
         Delivery delivery = deliveryRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new RuntimeException("Delivery not found for order: " + orderId));
 
-        // Проверяем, что доставка в процессе или создана
-        if (delivery.getDeliveryState() != DeliveryState.CREATED && delivery.getDeliveryState() != DeliveryState.IN_PROGRESS) {
-            throw new IllegalStateException("Delivery must be CREATED or IN_PROGRESS to fail, current state: " + delivery.getDeliveryState());
+        if (delivery.getDeliveryState() != DeliveryState.CREATED
+                && delivery.getDeliveryState() != DeliveryState.IN_PROGRESS) {
+            throw new IllegalStateException(
+                    String.format("Delivery must be CREATED or IN_PROGRESS to fail, current state: %s",
+                            delivery.getDeliveryState()));
         }
 
         delivery.setDeliveryState(DeliveryState.FAILED);
         deliveryRepository.save(delivery);
 
-        // Уведомляем order
         orderClient.deliveryFailed(orderId);
-
         log.info("Delivery failed for order: {}", orderId);
     }
 }

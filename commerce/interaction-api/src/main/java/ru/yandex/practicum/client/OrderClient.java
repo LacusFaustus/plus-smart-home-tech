@@ -6,6 +6,7 @@ import ru.yandex.practicum.dto.order.OrderDto;
 import ru.yandex.practicum.dto.order.CreateNewOrderRequest;
 import ru.yandex.practicum.dto.order.ProductReturnRequest;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 

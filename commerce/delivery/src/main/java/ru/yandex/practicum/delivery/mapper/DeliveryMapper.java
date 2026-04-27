@@ -8,8 +8,11 @@ import ru.yandex.practicum.enums.DeliveryState;
 
 @UtilityClass
 public class DeliveryMapper {
+
     public DeliveryDto toDto(Delivery delivery) {
-        if (delivery == null) return null;
+        if (delivery == null) {
+            return null;
+        }
 
         return DeliveryDto.builder()
                 .deliveryId(delivery.getDeliveryId())
@@ -21,19 +24,28 @@ public class DeliveryMapper {
     }
 
     public Delivery toEntity(DeliveryDto dto) {
-        if (dto == null) return null;
+        if (dto == null) {
+            return null;
+        }
 
-        return Delivery.builder()
+        Delivery delivery = Delivery.builder()
                 .deliveryId(dto.getDeliveryId())
                 .fromAddress(toAddressEntity(dto.getFromAddress()))
                 .toAddress(toAddressEntity(dto.getToAddress()))
                 .orderId(dto.getOrderId())
-                .deliveryState(dto.getDeliveryState() != null ? DeliveryState.valueOf(dto.getDeliveryState()) : null)
                 .build();
+
+        if (dto.getDeliveryState() != null) {
+            delivery.setDeliveryState(DeliveryState.valueOf(dto.getDeliveryState()));
+        }
+
+        return delivery;
     }
 
     private ru.yandex.practicum.dto.warehouse.AddressDto toAddressDto(Address address) {
-        if (address == null) return null;
+        if (address == null) {
+            return null;
+        }
         return ru.yandex.practicum.dto.warehouse.AddressDto.builder()
                 .country(address.getCountry())
                 .city(address.getCity())
@@ -44,7 +56,9 @@ public class DeliveryMapper {
     }
 
     private Address toAddressEntity(ru.yandex.practicum.dto.warehouse.AddressDto dto) {
-        if (dto == null) return null;
+        if (dto == null) {
+            return null;
+        }
         return Address.builder()
                 .country(dto.getCountry())
                 .city(dto.getCity())
