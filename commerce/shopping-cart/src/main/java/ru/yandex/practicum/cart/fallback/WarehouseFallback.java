@@ -6,6 +6,9 @@ import ru.yandex.practicum.client.WarehouseClient;
 import ru.yandex.practicum.dto.shoppingcart.ShoppingCartDto;
 import ru.yandex.practicum.dto.warehouse.*;
 
+import java.util.Map;
+import java.util.UUID;
+
 @Component
 @Slf4j
 public class WarehouseFallback implements WarehouseClient {
@@ -43,5 +46,23 @@ public class WarehouseFallback implements WarehouseClient {
                 .house("UNKNOWN")
                 .flat("UNKNOWN")
                 .build();
+    }
+
+    @Override
+    public BookedProductsDto assemblyProductsForOrder(AssemblyProductsForOrderRequest request) {
+        log.error("Fallback: assemblyProductsForOrder called when warehouse is unavailable");
+        throw new RuntimeException("Warehouse service is temporarily unavailable");
+    }
+
+    @Override
+    public void shippedToDelivery(ShippedToDeliveryRequest request) {
+        log.error("Fallback: shippedToDelivery called when warehouse is unavailable");
+        throw new RuntimeException("Warehouse service is temporarily unavailable");
+    }
+
+    @Override
+    public void acceptReturn(Map<UUID, Long> products) {
+        log.error("Fallback: acceptReturn called when warehouse is unavailable");
+        throw new RuntimeException("Warehouse service is temporarily unavailable");
     }
 }

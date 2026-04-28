@@ -18,34 +18,30 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class WarehouseService {
-    private final WarehouseProductRepository repository;
+    private final WarehouseProductRepository productRepository;
 
     @Transactional
     public void registerNewProduct(NewProductInWarehouseRequest request) {
-        if (repository.existsByProductId(request.getProductId())) {
+        if (productRepository.existsByProductId(request.getProductId())) {
             throw new SpecifiedProductAlreadyInWarehouseException(request.getProductId());
         }
         WarehouseProduct product = WarehouseMapper.toEntity(request);
-        repository.save(product);
+        productRepository.save(product);
         log.info("Registered new product in warehouse: productId={}", request.getProductId());
     }
 
     @Transactional
     public void addStock(UUID productId, Long quantity) {
-        WarehouseProduct product = repository.findByProductId(productId)
+        WarehouseProduct product = productRepository.findByProductId(productId)
                 .orElseThrow(() -> new NoSpecifiedProductInWarehouseException(productId));
         product.setQuantity(product.getQuantity() + quantity);
-        repository.save(product);
+        productRepository.save(product);
         log.info("Added {} units of product {}, new total: {}", quantity, productId, product.getQuantity());
     }
 
     public BookedProductsDto checkAvailability(ShoppingCartDto cart) {
         if (cart.getProducts() == null || cart.getProducts().isEmpty()) {
-            return BookedProductsDto.builder()
-                    .deliveryWeight(0.0)
-                    .deliveryVolume(0.0)
-                    .fragile(false)
-                    .build();
+            throw new RuntimeException("Shopping cart is empty");
         }
 
         double totalWeight = 0.0;
@@ -56,7 +52,7 @@ public class WarehouseService {
             UUID productId = entry.getKey();
             Long requestedQty = entry.getValue();
 
-            WarehouseProduct product = repository.findByProductId(productId)
+            WarehouseProduct product = productRepository.findByProductId(productId)
                     .orElseThrow(() -> new NoSpecifiedProductInWarehouseException(productId));
 
             if (product.getQuantity() < requestedQty) {
@@ -85,5 +81,20 @@ public class WarehouseService {
                 cart.getShoppingCartId(), totalWeight, totalVolume, hasFragile);
 
         return result;
+    }
+
+    @Transactional
+    public void returnProducts(Map<UUID, Long> products) {
+        for (Map.Entry<UUID, Long> entry : products.entrySet()) {
+            UUID productId = entry.getKey();
+            Long quantity = entry.getValue();
+
+            WarehouseProduct product = productRepository.findByProductId(productId)
+                    .orElseThrow(() -> new NoSpecifiedProductInWarehouseException(productId));
+
+            product.setQuantity(product.getQuantity() + quantity);
+            productRepository.save(product);
+            log.info("Returned {} units of product {}, new total: {}", quantity, productId, product.getQuantity());
+        }
     }
 }
